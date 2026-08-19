@@ -1,0 +1,45 @@
+# --- Terraform ---
+# .terraform.lock.hcl SÍ se versiona (fija versiones de provider).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / Next.js (Fase 5 - dashboard opcional) ---
+node_modules/
+.next/
+.vercel/
+npm-debug.log*
+
+# --- Secrets / config local ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Datos reales (solo se versionan muestras/ejemplos) ---
+data/raw/
+data/processed/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
