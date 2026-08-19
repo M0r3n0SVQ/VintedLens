@@ -101,6 +101,17 @@ solo añadirían nombres que gestionar sin beneficio real. Un bucket con
 prefijos simplifica el IAM y las políticas, y sigue permitiendo
 filtrar por prefijo en las notificaciones de EventBridge (Fase 2).
 
+**Budget de AWS con alerta desde el primer céntimo, no a fin de mes.**
+El objetivo explícito es coste cero. Casi todo el stack (Lambda,
+EventBridge, S3, Parameter Store estándar, SES, CloudWatch Logs) cae
+en el always-free tier a este volumen de uso; la única pieza que no
+tiene free tier perpetuo es **Amazon Bedrock** (Fase 3), que se paga
+por token aunque sea céntimos. En vez de confiar en revisar la
+consola de facturación, `aws_budgets_budget` (`terraform/budget.tf`)
+manda un email en cuanto aparece cualquier cargo real (umbral al 1%
+de un límite de 1 USD) y otro si el gasto previsto del mes va a
+superar ese límite.
+
 ## Plan de fases
 
 El trabajo avanza de forma intermitente; cada fase termina en un
@@ -133,6 +144,8 @@ VintedLens/
 │   ├── variables.tf   # project / environment / owner / aws_region
 │   ├── locals.tf      # Tags comunes
 │   ├── s3.tf          # Bucket de datos (raw/ + processed/)
+│   ├── budget.tf      # Alerta de coste (guardarraíl de gasto cero)
+│   ├── terraform.tfvars.example  # Plantilla de variables locales
 │   └── outputs.tf     # Nombre y ARN del bucket
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
@@ -161,6 +174,7 @@ Requiere Terraform >= 1.9 y credenciales AWS configuradas.
 
 ```bash
 cd terraform
+cp terraform.tfvars.example terraform.tfvars   # y rellena tu email real
 terraform init
 terraform plan
 terraform apply

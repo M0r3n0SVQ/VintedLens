@@ -1,0 +1,5 @@
+# Copia este archivo a terraform.tfvars (ignorado por git) y rellena
+# tus valores reales. terraform.tfvars.example sí se versiona como
+# documentación del formato esperado.
+
+budget_alert_email = "tu-email@example.com"

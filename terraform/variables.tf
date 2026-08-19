@@ -21,3 +21,8 @@ variable "owner" {
   type        = string
   default     = "alvaro"
 }
+
+variable "budget_alert_email" {
+  description = "Email que recibe las alertas de coste de AWS Budgets. Sin valor por defecto a propósito: se define en un terraform.tfvars local (no versionado) para no exponer un email personal en un repo público."
+  type        = string
+}
