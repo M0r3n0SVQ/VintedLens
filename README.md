@@ -15,7 +15,11 @@ Parameter Store, Terraform, pytest, GitHub Actions) y de **Plendu**
 
 ✅ **Fase 1 completada** — repo, Terraform base, bucket S3 desplegado,
 formato de CSV definido, guardarraíl de coste activo.
-🚧 **Fase 2 siguiente** — procesamiento con EventBridge + Lambda.
+✅ **Fase 2 completada** — Lambda de procesamiento, EventBridge,
+Parameter Store, tests con pytest. Verificado de extremo a extremo
+contra AWS real.
+🚧 **Fase 3 siguiente** — resumen en lenguaje natural con Bedrock +
+reporting por email.
 
 ## Por qué este proyecto
 
@@ -114,6 +118,43 @@ manda un email en cuanto aparece cualquier cargo real (umbral al 1%
 de un límite de 1 USD) y otro si el gasto previsto del mes va a
 superar ese límite.
 
+**Lambda sin dependencias de terceros, solo `boto3`.** El
+procesamiento (parsing de CSV, validación, cálculo de métricas) es
+lógica sencilla que la librería estándar de Python resuelve sin
+necesidad de pandas. Evitarlo mantiene el paquete de despliegue
+pequeño, sin paso de `pip install` antes de empaquetar, y sin el
+cold-start extra que arrastra una dependencia pesada.
+
+**`terraform-deploy` con `PowerUserAccess` + `IAMFullAccess`, no una
+política a medida por recurso.** El objetivo inicial era una política
+mínima solo para lo que cada fase necesita, pero crear el rol de la
+Lambda requiere `iam:CreateRole`/`iam:PutRolePolicy`, que
+`PowerUserAccess` bloquea a propósito. Para una cuenta personal de un
+solo desarrollador, mantener una política de IAM recortada y
+actualizarla en cada fase añade fricción sin beneficio de seguridad
+real: el límite que importa aquí es no usar el usuario root a diario
+y tener MFA en él, no la granularidad de `terraform-deploy`. Queda
+anotado por si el proyecto creciera a un entorno multi-persona, donde
+sí compensaría.
+
+**El bucle EventBridge → Lambda no puede autodispararse.** La regla
+filtra explícitamente por prefijo `raw/`; la Lambda solo escribe en
+`processed/`. Así, sus propias escrituras nunca generan un nuevo
+evento que la vuelva a disparar — sin esto, un fallo de diseño
+trivial podría convertirse en un bucle de invocaciones sin fin (y
+coste sin fin).
+
+**`ssm:GetParametersByPath` necesita el recurso exacto, no solo el
+comodín.** Durante la verificación end-to-end la Lambda fallaba con
+`AccessDeniedException` pese a que la política incluía
+`arn:.../parameter/vintedlens/dev/processing/*`. El motivo: IAM
+evalúa `GetParametersByPath` contra la ruta exacta que se pide (sin
+`/*` al final), mientras que `GetParameter` evalúa cada parámetro
+hijo. Hace falta el recurso exacto **y** el comodín en la misma
+política — con solo uno de los dos, falla. Documentado en
+`terraform/lambda_processing.tf` para no repetir el error en futuras
+Lambdas que lean Parameter Store.
+
 ## Plan de fases
 
 El trabajo avanza de forma intermitente; cada fase termina en un
@@ -122,7 +163,7 @@ estado estable y funcional, sin depender de tiempo continuo.
 - [x] **Fase 1 — Fundación**: estructura del repo, Terraform base,
   bucket S3 `raw/`, formato de CSV definido, ingesta simple. README
   con arquitectura y decisiones.
-- [ ] **Fase 2 — Procesamiento**: EventBridge + Lambda de limpieza y
+- [x] **Fase 2 — Procesamiento**: EventBridge + Lambda de limpieza y
   cálculo de métricas. Parameter Store para configuración. Tests con
   pytest. Bucket `processed/`.
 - [ ] **Fase 3 — IA + Reporting**: integración con Bedrock para el
@@ -145,25 +186,29 @@ VintedLens/
 │   ├── providers.tf   # Provider AWS + default_tags
 │   ├── variables.tf   # project / environment / owner / aws_region
 │   ├── locals.tf      # Tags comunes
-│   ├── s3.tf          # Bucket de datos (raw/ + processed/)
-│   ├── state.tf       # Bucket de estado remoto de Terraform
-│   ├── budget.tf      # Alerta de coste (guardarraíl de gasto cero)
+│   ├── s3.tf                # Bucket de datos (raw/ + processed/)
+│   ├── state.tf             # Bucket de estado remoto de Terraform
+│   ├── budget.tf            # Alerta de coste (guardarraíl de gasto cero)
+│   ├── parameter_store.tf   # Config de la Lambda de procesamiento
+│   ├── lambda_processing.tf # Lambda + rol IAM + log group
+│   ├── eventbridge.tf       # Trigger raw/ -> EventBridge -> Lambda
 │   ├── terraform.tfvars.example  # Plantilla de variables locales
-│   └── outputs.tf     # Nombres/ARNs de los buckets
+│   └── outputs.tf           # Nombres/ARNs de buckets y Lambda
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
 │   └── samples/
 │       └── inventory_sample.csv
-├── src/                 # Código de las Lambdas (Fase 2+)
-├── tests/               # Tests pytest (Fase 2+)
-├── .github/workflows/   # CI/CD (Fase 4)
+├── src/processing/       # Lambda de procesamiento (parsing, métricas, handler)
+├── tests/                # Tests pytest (funciones puras + integración con moto)
+├── pyproject.toml        # Config de pytest
+├── requirements-dev.txt  # Dependencias de test (pytest, moto)
+├── .github/workflows/    # CI/CD (Fase 4)
 ├── .gitignore
 └── README.md
 ```
 
-Las carpetas se crean cuando tienen contenido real; `src/`, `tests/` y
-`.github/workflows/` aparecen en el árbol como estructura prevista
-hasta que lleguen las fases que las llenan.
+Las carpetas se crean cuando tienen contenido real; `.github/workflows/`
+aparece en el árbol como estructura prevista hasta que llegue la Fase 4.
 
 ## Formato del CSV
 
@@ -204,8 +249,45 @@ aws s3 cp data/samples/inventory_sample.csv \
 ```
 
 `<data_bucket_name>` es el output `data_bucket_name` de `terraform
-apply`. En la Fase 2, esta subida disparará automáticamente el
-procesamiento vía EventBridge.
+apply`. Esa subida dispara automáticamente el procesamiento vía
+EventBridge: en segundos aparecen `<basename>_clean.csv` y
+`<basename>_metrics.json` en `processed/`.
+
+## Procesamiento (Fase 2)
+
+La Lambda (`src/processing/`) valida cada fila del CSV contra
+`data/schema.md` y calcula, por categoría y en global:
+
+- **Precio medio**: media de `listing_price` (publicado) y de
+  `sale_price` sobre lo vendido.
+- **Tiempo en catálogo**: media de `sold_date - listed_date` en días,
+  solo sobre artículos vendidos.
+- **Rotación** (`sell_through_rate`): `vendidos / (vendidos +
+  listados + reservados)`. Se excluye `removed` del denominador a
+  propósito — un artículo retirado ya no compite por venderse, así
+  que incluirlo penalizaría categorías donde se despublica por
+  motivos ajenos a la demanda (cambio de temporada, error de
+  publicación). Categorías con `sell_through_rate` por debajo del
+  umbral de Parameter Store (`0.3` por defecto) se marcan
+  `low_rotation: true`.
+
+Las filas que incumplen el esquema (categoría no reconocida, fechas
+inconsistentes, `sold` sin `sale_price`, etc.) no abortan el batch:
+se registran en `row_errors` dentro del JSON de salida y el resto del
+CSV se procesa igual.
+
+### Tests
+
+```bash
+python -m venv .venv
+./.venv/Scripts/pip install -r requirements-dev.txt   # Windows
+# source .venv/bin/activate && pip install -r requirements-dev.txt  # Linux/Mac
+python -m pytest
+```
+
+La lógica de parsing/métricas se testea como funciones puras, sin
+AWS de por medio. El handler completo se testea con `moto`
+(S3 mockeado en memoria), sin tocar la cuenta real.
 
 ## Stack técnico
 
