@@ -23,8 +23,12 @@ from .summarizer import build_prompt, compute_deltas
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3")
-ses = boto3.client("ses")
+# Región explícita: en Lambda AWS_REGION siempre está definida, pero un
+# boto3.client() sin region_name falla en cuanto no hay ninguna región
+# configurada en el entorno (por ejemplo, un runner de CI limpio).
+_region = os.environ.get("AWS_REGION", "eu-west-1")
+s3 = boto3.client("s3", region_name=_region)
+ses = boto3.client("ses", region_name=_region)
 
 DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 REPORT_EMAIL = os.environ.get("REPORT_EMAIL", "")

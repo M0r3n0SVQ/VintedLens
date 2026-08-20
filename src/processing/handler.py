@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any
@@ -25,7 +26,10 @@ from .parsing import InventoryItem, parse_csv
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3")
+# Región explícita: en Lambda AWS_REGION siempre está definida, pero un
+# boto3.client() sin region_name falla en cuanto no hay ninguna región
+# configurada en el entorno (por ejemplo, un runner de CI limpio).
+s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "eu-west-1"))
 
 CSV_FIELDNAMES = (
     "item_id",
