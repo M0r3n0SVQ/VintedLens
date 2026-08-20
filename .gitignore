@@ -8,6 +8,7 @@
 !*.tfvars.example
 crash.log
 crash.*.log
+.build/
 
 # --- Python ---
 __pycache__/

@@ -7,4 +7,9 @@ locals {
     environment = var.environment
     owner       = var.owner
   }
+
+  processing_lambda_name      = "${var.project}-${var.environment}-processing"
+  processing_parameter_prefix = "/${var.project}/${var.environment}/processing"
 }
+
+data "aws_caller_identity" "current" {}
