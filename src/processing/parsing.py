@@ -19,6 +19,7 @@ CATEGORIES = frozenset(
         "polos",
         "camisas",
         "chaquetas",
+        "sudaderas",
         "vestidos",
         "jerseys",
         "faldas",

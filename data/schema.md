@@ -24,7 +24,7 @@ este mismo esquema para no romper el resto del pipeline.
 |-----------------|---------|:-----------:|------------------------------------------------------------------------------|
 | `item_id`       | string  | sí          | Identificador interno único del artículo. Formato `LV-NNNN` (secuencial).   |
 | `title`         | string  | sí          | Título del anuncio, texto libre.                                            |
-| `category`      | enum    | sí          | Una de: `vaqueros`, `camisetas`, `polos`, `camisas`, `chaquetas`, `vestidos`, `jerseys`, `faldas`, `pantalones`, `calzado`, `accesorios`, `otros`. |
+| `category`      | enum    | sí          | Una de: `vaqueros`, `camisetas`, `polos`, `camisas`, `chaquetas`, `sudaderas`, `vestidos`, `jerseys`, `faldas`, `pantalones`, `calzado`, `accesorios`, `otros`. |
 | `brand`         | string  | no          | Marca. `desconocida` si no se identifica.                                   |
 | `size`          | string  | no          | Talla tal cual se publicó (`S`, `42`, `talla_unica`, ...). Sin normalizar entre sistemas de tallaje. |
 | `condition`     | enum    | sí          | Una de: `nuevo_con_etiquetas`, `nuevo_sin_etiquetas`, `muy_bueno`, `bueno`, `satisfactorio` (mapea las categorías de estado de Vinted). |
