@@ -1,0 +1,6 @@
+# Dependencias de desarrollo/test. La Lambda en sí no tiene
+# dependencias de terceros aparte de boto3, que ya viene incluido en
+# el runtime de Lambda — no hace falta empaquetarlo.
+pytest>=7.4,<9
+moto[s3]>=5.0,<6
+boto3>=1.34
