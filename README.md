@@ -18,8 +18,12 @@ formato de CSV definido, guardarraíl de coste activo.
 ✅ **Fase 2 completada** — Lambda de procesamiento, EventBridge,
 Parameter Store, tests con pytest. Verificado de extremo a extremo
 contra AWS real.
-🚧 **Fase 3 siguiente** — resumen en lenguaje natural con Bedrock +
-reporting por email.
+✅ **Fase 3 completada** — Lambda de reporting, resumen en lenguaje
+natural con Bedrock, envío por SES. Verificado de extremo a extremo:
+email real recibido con un resumen generado por IA a partir de las
+métricas.
+🚧 **Fase 4 siguiente** — CI/CD con GitHub Actions, linting,
+cobertura de tests, README final.
 
 ## Por qué este proyecto
 
@@ -155,6 +159,52 @@ política — con solo uno de los dos, falla. Documentado en
 `terraform/lambda_processing.tf` para no repetir el error en futuras
 Lambdas que lean Parameter Store.
 
+**Claude Haiku 4.5 en vez de un modelo Nova.** El plan inicial era
+Amazon Nova Micro por ser el más barato de Bedrock, pero no aparecía
+como disponible en la cuenta/región al comprobarlo en la consola. Se
+optó por Claude Haiku 4.5 ($1,10 / $5,50 por millón de tokens):
+suficientemente barato para resumir unas pocas métricas (céntimos al
+mes con cadencia semanal) y con disponibilidad confirmada en
+`eu-west-1`.
+
+**Los modelos de Anthropic en Bedrock no se invocan con el ID del
+modelo directamente.** Hacen falta dos cosas que no son evidentes
+desde la documentación de alto nivel:
+1. Un **inference profile** (`eu.anthropic.claude-haiku-4-5-...`, no
+   `anthropic.claude-haiku-4-5-...` a secas) — la invocación on-demand
+   directa del modelo base no está soportada para este modelo. El
+   prefijo `eu.` mantiene el tráfico dentro de la UE (Fráncfort,
+   Estocolmo, Milán, España, Irlanda, París) en vez de enrutar
+   globalmente.
+2. La política IAM necesita permiso **tanto** sobre el ARN del
+   inference profile **como** sobre el ARN del modelo base (con
+   comodín de región, ya que el profile puede enrutar a cualquiera de
+   esas regiones EU) — solo el profile no basta.
+3. Un paso de cuenta, aparte de "Model access": Anthropic exige
+   rellenar un formulario de "caso de uso" (`PutUseCaseForModelAccess`
+   en la API de Bedrock) antes de la primera invocación. No aparece
+   como un formulario obvio en la consola; se puede rellenar por API
+   pasando `companyName`, `companyWebsite`, `intendedUsers` (código
+   numérico: `"0"` interno / `"1"` externo), `industryOption` y
+   `useCases` como JSON en base64.
+
+**SES en modo sandbox, remitente = destinatario.** Una cuenta nueva
+empieza en sandbox (solo se puede enviar a direcciones verificadas).
+Como el informe es para un único destinatario (uno mismo), no hay
+motivo para pedir salir del sandbox: verificar una sola identidad de
+email y usarla como origen y destino del envío es suficiente y evita
+un trámite adicional con AWS.
+
+**Informe semanal por defecto, comparando con el anterior cuando
+existe.** La Lambda de reporting no reacciona a cada CSV subido (eso
+generaría un email por archivo); una regla EventBridge programada
+(`rate(7 days)`, configurable) dispara el resumen periódico. Si hay
+al menos dos snapshots de métricas en `processed/`, calcula el delta
+de rotación y precio medio por categoría entre el más reciente y el
+anterior, y se lo pasa a Bedrock para que lo mencione en el resumen
+("bajó un X%"); en el primer informe, sin histórico, genera un
+resumen del estado actual sin comparación.
+
 ## Plan de fases
 
 El trabajo avanza de forma intermitente; cada fase termina en un
@@ -166,7 +216,7 @@ estado estable y funcional, sin depender de tiempo continuo.
 - [x] **Fase 2 — Procesamiento**: EventBridge + Lambda de limpieza y
   cálculo de métricas. Parameter Store para configuración. Tests con
   pytest. Bucket `processed/`.
-- [ ] **Fase 3 — IA + Reporting**: integración con Bedrock para el
+- [x] **Fase 3 — IA + Reporting**: integración con Bedrock para el
   resumen en lenguaje natural. Lambda de reporting + envío por SES.
 - [ ] **Fase 4 — CI/CD y calidad**: GitHub Actions completo (tests +
   despliegue Terraform), linting, cobertura de tests, documentación
@@ -186,19 +236,24 @@ VintedLens/
 │   ├── providers.tf   # Provider AWS + default_tags
 │   ├── variables.tf   # project / environment / owner / aws_region
 │   ├── locals.tf      # Tags comunes
-│   ├── s3.tf                # Bucket de datos (raw/ + processed/)
-│   ├── state.tf             # Bucket de estado remoto de Terraform
-│   ├── budget.tf            # Alerta de coste (guardarraíl de gasto cero)
-│   ├── parameter_store.tf   # Config de la Lambda de procesamiento
-│   ├── lambda_processing.tf # Lambda + rol IAM + log group
-│   ├── eventbridge.tf       # Trigger raw/ -> EventBridge -> Lambda
+│   ├── s3.tf                    # Bucket de datos (raw/ + processed/)
+│   ├── state.tf                 # Bucket de estado remoto de Terraform
+│   ├── budget.tf                # Alerta de coste (guardarraíl de gasto cero)
+│   ├── parameter_store.tf       # Config de procesamiento y reporting
+│   ├── lambda_package.tf        # Zip de código compartido por las Lambdas
+│   ├── lambda_processing.tf     # Lambda de procesamiento + rol IAM + log group
+│   ├── eventbridge.tf           # Trigger raw/ -> EventBridge -> Lambda
+│   ├── reporting.tf             # Lambda de reporting + SES + rol IAM + log group
+│   ├── reporting_schedule.tf    # Disparo periódico (EventBridge programado)
 │   ├── terraform.tfvars.example  # Plantilla de variables locales
-│   └── outputs.tf           # Nombres/ARNs de buckets y Lambda
+│   └── outputs.tf               # Nombres/ARNs de buckets y Lambdas
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
 │   └── samples/
 │       └── inventory_sample.csv
-├── src/processing/       # Lambda de procesamiento (parsing, métricas, handler)
+├── src/
+│   ├── processing/  # Lambda de procesamiento (parsing, métricas, handler)
+│   └── reporting/   # Lambda de reporting (deltas, prompt, Bedrock, SES)
 ├── tests/                # Tests pytest (funciones puras + integración con moto)
 ├── pyproject.toml        # Config de pytest
 ├── requirements-dev.txt  # Dependencias de test (pytest, moto)
@@ -288,6 +343,58 @@ python -m pytest
 La lógica de parsing/métricas se testea como funciones puras, sin
 AWS de por medio. El handler completo se testea con `moto`
 (S3 mockeado en memoria), sin tocar la cuenta real.
+
+## Reporting (Fase 3)
+
+Una regla EventBridge programada (semanal por defecto) dispara la
+Lambda de reporting (`src/reporting/`), que:
+
+1. Lista `processed/` y coge el `*_metrics.json` más reciente (y el
+   anterior, si existe, para calcular deltas).
+2. Construye un prompt con las métricas, los deltas y una instrucción
+   de resumen en español, máximo 150 palabras.
+3. Se lo pasa a Bedrock (Claude Haiku 4.5 vía Converse API) y recibe
+   el resumen en lenguaje natural.
+4. Lo envía por email vía SES.
+
+### Requisitos únicos (una sola vez por cuenta AWS)
+
+Antes de que la Lambda de reporting funcione hacen falta dos pasos
+manuales que Terraform no puede hacer por ti:
+
+1. **Verificar el email de SES**: `terraform apply` dispara el envío
+   de un correo de verificación a `report_email`; hay que confirmarlo
+   (revisa spam/promociones si no llega a la bandeja principal).
+2. **Rellenar el formulario de caso de uso de Anthropic**: sin él,
+   Bedrock devuelve `ResourceNotFoundException` con el mensaje *"Model
+   use case details have not been submitted for this account"*. Se
+   rellena una sola vez por cuenta, vía API:
+
+```bash
+python - <<'EOF'
+import base64, json
+form = {
+    "companyName": "...",
+    "companyWebsite": "...",
+    "intendedUsers": "0",  # "0" interno, "1" externo
+    "industryOption": "Retail",
+    "otherIndustryOption": "",
+    "useCases": "...",
+}
+print(base64.b64encode(json.dumps(form).encode()).decode())
+EOF
+# aws bedrock put-use-case-for-model-access --form-data <salida de arriba> --region eu-west-1
+```
+
+AWS avisa de que la propagación puede tardar hasta 15 minutos.
+
+### Tests
+
+Mismo comando que en Fase 2 (`python -m pytest`): `summarizer.py`
+(deltas y construcción del prompt) se testea como funciones puras;
+el handler se testea con `moto` para S3, y con dobles de prueba
+(monkeypatch) para Bedrock y SES en vez de depender de que `moto` los
+simule fielmente.
 
 ## Stack técnico
 
