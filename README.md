@@ -146,9 +146,10 @@ VintedLens/
 │   ├── variables.tf   # project / environment / owner / aws_region
 │   ├── locals.tf      # Tags comunes
 │   ├── s3.tf          # Bucket de datos (raw/ + processed/)
+│   ├── state.tf       # Bucket de estado remoto de Terraform
 │   ├── budget.tf      # Alerta de coste (guardarraíl de gasto cero)
 │   ├── terraform.tfvars.example  # Plantilla de variables locales
-│   └── outputs.tf     # Nombre y ARN del bucket
+│   └── outputs.tf     # Nombres/ARNs de los buckets
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
 │   └── samples/
@@ -172,7 +173,8 @@ El contrato de entrada del pipeline está documentado en
 
 ## Infraestructura (Terraform)
 
-Requiere Terraform >= 1.9 y credenciales AWS configuradas.
+Requiere Terraform >= 1.11 (por el locking nativo del backend S3) y
+credenciales AWS configuradas.
 
 ```bash
 cd terraform
@@ -183,10 +185,15 @@ terraform apply
 ```
 
 `terraform plan` se ejecuta siempre antes de `apply`, nunca se salta
-este paso. El estado es local en esta fase (no hay backend remoto
-configurado todavía, así que `terraform.tfstate` no se pierde solo si
-se borra el archivo — no hay copia en S3 hasta que se añada un backend
-remoto en una fase posterior).
+este paso.
+
+**Estado remoto**: `terraform.tfstate` vive en un bucket S3 dedicado
+(`vintedlens-dev-tfstate-*`), versionado y cifrado, separado del
+bucket de datos porque el estado puede contener valores sensibles y
+tiene un ciclo de vida distinto. El locking usa el mecanismo nativo
+de S3 (`use_lockfile`, Terraform >= 1.11) en vez de una tabla
+DynamoDB — un recurso menos que mantener sin perder protección contra
+`apply` concurrentes.
 
 ## Subir un CSV (ingesta manual, Fase 1)
 
