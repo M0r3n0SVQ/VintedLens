@@ -22,3 +22,13 @@ output "processing_lambda_arn" {
   description = "ARN de la Lambda de procesamiento."
   value       = aws_lambda_function.processing.arn
 }
+
+output "reporting_lambda_name" {
+  description = "Nombre de la Lambda de reporting."
+  value       = aws_lambda_function.reporting.function_name
+}
+
+output "report_email" {
+  description = "Email del informe. AWS envía un correo de verificación a esta dirección al hacer apply; hay que confirmarlo antes de que SES pueda enviar el informe."
+  value       = aws_ses_email_identity.report.email
+}

@@ -3,3 +3,4 @@
 # documentación del formato esperado.
 
 budget_alert_email = "tu-email@example.com"
+report_email        = "tu-email@example.com"

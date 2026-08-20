@@ -26,3 +26,19 @@ resource "aws_ssm_parameter" "currency" {
   type  = "String"
   value = "EUR"
 }
+
+# Configuración de la Lambda de reporting: el modelo de Bedrock y el
+# límite de tokens se pueden ajustar (p. ej. probar un modelo más
+# capaz) sin tocar código.
+
+resource "aws_ssm_parameter" "reporting_model_id" {
+  name  = "${local.reporting_parameter_prefix}/model_id"
+  type  = "String"
+  value = var.bedrock_model_id
+}
+
+resource "aws_ssm_parameter" "reporting_max_tokens" {
+  name  = "${local.reporting_parameter_prefix}/max_tokens"
+  type  = "String"
+  value = "400"
+}

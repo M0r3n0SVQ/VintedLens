@@ -1,14 +1,8 @@
 # Lambda de procesamiento: limpia el CSV de raw/ y calcula métricas
 # en processed/. Sin dependencias de terceros (solo boto3, incluido
 # en el runtime), así que el paquete de despliegue es directamente el
-# contenido de src/, sin paso de "pip install" previo.
-
-data "archive_file" "processing" {
-  type        = "zip"
-  source_dir  = "${path.module}/../src"
-  output_path = "${path.module}/.build/processing.zip"
-  excludes    = ["**/__pycache__/**", "**/*.pyc"]
-}
+# contenido de src/, sin paso de "pip install" previo (ver
+# lambda_package.tf para el archive_file compartido).
 
 resource "aws_cloudwatch_log_group" "processing_lambda" {
   name              = "/aws/lambda/${local.processing_lambda_name}"
@@ -86,8 +80,8 @@ resource "aws_lambda_function" "processing" {
   runtime          = "python3.12"
   timeout          = 30
   memory_size      = 256
-  filename         = data.archive_file.processing.output_path
-  source_code_hash = data.archive_file.processing.output_base64sha256
+  filename         = data.archive_file.lambda_src.output_path
+  source_code_hash = data.archive_file.lambda_src.output_base64sha256
 
   environment {
     variables = {
