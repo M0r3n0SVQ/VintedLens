@@ -75,8 +75,12 @@ def test_handler_sends_report_and_compares_with_previous(
 
     s3 = boto3.client("s3", region_name=REGION)
     s3.create_bucket(Bucket=BUCKET, CreateBucketConfiguration={"LocationConstraint": REGION})
-    _put_metrics(s3, "processed/inventory_20260601_metrics.json", overall_total=5, sell_through_rate=0.5)
-    _put_metrics(s3, "processed/inventory_20260701_metrics.json", overall_total=8, sell_through_rate=0.65)
+    _put_metrics(
+        s3, "processed/inventory_20260601_metrics.json", overall_total=5, sell_through_rate=0.5
+    )
+    _put_metrics(
+        s3, "processed/inventory_20260701_metrics.json", overall_total=8, sell_through_rate=0.65
+    )
 
     result = handler_module.handler({}, context=None)
 
@@ -85,4 +89,5 @@ def test_handler_sends_report_and_compares_with_previous(
     assert result["compared_to"] == "processed/inventory_20260601_metrics.json"
     assert "sell_through_rate_change" in captured_prompt["prompt"]
     assert sent_emails[0]["Destination"]["ToAddresses"] == [REPORT_EMAIL]
-    assert sent_emails[0]["Message"]["Body"]["Text"]["Data"] == "Resumen de prueba generado por Bedrock."
+    expected_summary = "Resumen de prueba generado por Bedrock."
+    assert sent_emails[0]["Message"]["Body"]["Text"]["Data"] == expected_summary

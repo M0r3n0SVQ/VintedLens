@@ -11,7 +11,7 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -100,7 +100,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     metrics_key = f"{config.processed_prefix}{basename}_metrics.json"
 
     metrics_payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "source_key": source_key,
         "currency": config.currency,
         "low_sell_through_threshold": config.low_sell_through_threshold,
