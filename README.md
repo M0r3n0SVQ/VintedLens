@@ -1,5 +1,7 @@
 # VintedLens
 
+[![CI](https://github.com/M0r3n0SVQ/VintedLens/actions/workflows/ci.yml/badge.svg)](https://github.com/M0r3n0SVQ/VintedLens/actions/workflows/ci.yml)
+
 Pipeline serverless en AWS para ingesta, procesamiento y reporting del
 inventario y las ventas de **LoopVTG**, un negocio de reventa de ropa
 vintage activo en Vinted. Convierte un CSV exportado a mano en métricas
@@ -22,8 +24,10 @@ contra AWS real.
 natural con Bedrock, envío por SES. Verificado de extremo a extremo:
 email real recibido con un resumen generado por IA a partir de las
 métricas.
-🚧 **Fase 4 siguiente** — CI/CD con GitHub Actions, linting,
-cobertura de tests, README final.
+🚧 **Fase 4 en curso** — CI/CD con GitHub Actions, linting, cobertura
+de tests. El código y los workflows están listos y verificados en
+local; falta el primer push al repo remoto para confirmarlos
+corriendo en GitHub de verdad (ver [CI/CD](#cicd-fase-4)).
 
 ## Por qué este proyecto
 
@@ -205,6 +209,31 @@ anterior, y se lo pasa a Bedrock para que lo mencione en el resumen
 ("bajó un X%"); en el primer informe, sin histórico, genera un
 resumen del estado actual sin comparación.
 
+**GitHub Actions se autentica con OIDC, no con access keys en
+secrets.** Un rol IAM de confianza federada (`terraform/github_oidc.tf`)
+solo puede asumirse desde workflows que corren dentro de
+`M0r3n0SVQ/VintedLens`; las credenciales son temporales, por
+invocación, y no hay ninguna access key de larga duración que rotar,
+filtrar o revocar manualmente.
+
+**`terraform apply` en CI/CD es manual (`workflow_dispatch`), no
+automático en cada merge a main.** El objetivo del proyecto es coste
+cero y cambios deliberados, no un pipeline que despliega infraestructura
+real sin que nadie lo revise antes. `terraform plan` sí corre
+automáticamente en cada PR que toca `terraform/` — se ve el diff antes
+de fusionar — pero aplicar es siempre una acción explícita desde la
+pestaña Actions. Coherente con cómo se ha trabajado en todas las fases
+anteriores: plan primero, confirmación humana, apply después.
+
+**`ruff` para linting, `pytest-cov` con un mínimo del 80%.** `ruff`
+sustituye a flake8+isort+pyupgrade en una sola herramienta rápida,
+sin más configuración que `line-length` y el set de reglas. El 80% de
+cobertura es un umbral realista dado el código actual (86% en local):
+dejar margen evita que el pipeline se rompa por líneas de manejo de
+errores de SSM/Bedrock difíciles de testear con sentido, sin renunciar
+a una cobertura real del código de negocio (parsing, métricas,
+deltas, prompt).
+
 ## Plan de fases
 
 El trabajo avanza de forma intermitente; cada fase termina en un
@@ -245,8 +274,9 @@ VintedLens/
 │   ├── eventbridge.tf           # Trigger raw/ -> EventBridge -> Lambda
 │   ├── reporting.tf             # Lambda de reporting + SES + rol IAM + log group
 │   ├── reporting_schedule.tf    # Disparo periódico (EventBridge programado)
+│   ├── github_oidc.tf           # Rol OIDC para GitHub Actions (sin access keys)
 │   ├── terraform.tfvars.example  # Plantilla de variables locales
-│   └── outputs.tf               # Nombres/ARNs de buckets y Lambdas
+│   └── outputs.tf               # Nombres/ARNs de buckets, Lambdas y rol OIDC
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
 │   └── samples/
@@ -254,16 +284,16 @@ VintedLens/
 ├── src/
 │   ├── processing/  # Lambda de procesamiento (parsing, métricas, handler)
 │   └── reporting/   # Lambda de reporting (deltas, prompt, Bedrock, SES)
-├── tests/                # Tests pytest (funciones puras + integración con moto)
-├── pyproject.toml        # Config de pytest
-├── requirements-dev.txt  # Dependencias de test (pytest, moto)
-├── .github/workflows/    # CI/CD (Fase 4)
+├── tests/                 # Tests pytest (funciones puras + integración con moto)
+├── pyproject.toml         # Config de pytest + ruff
+├── requirements-dev.txt   # Dependencias de test/lint (pytest, moto, ruff)
+├── .github/workflows/
+│   ├── ci.yml               # Lint + tests + terraform validate, en cada push/PR
+│   ├── terraform-plan.yml   # terraform plan en PRs que tocan terraform/
+│   └── terraform-apply.yml  # terraform apply manual (workflow_dispatch)
 ├── .gitignore
 └── README.md
 ```
-
-Las carpetas se crean cuando tienen contenido real; `.github/workflows/`
-aparece en el árbol como estructura prevista hasta que llegue la Fase 4.
 
 ## Formato del CSV
 
@@ -395,6 +425,34 @@ Mismo comando que en Fase 2 (`python -m pytest`): `summarizer.py`
 el handler se testea con `moto` para S3, y con dobles de prueba
 (monkeypatch) para Bedrock y SES en vez de depender de que `moto` los
 simule fielmente.
+
+## CI/CD (Fase 4)
+
+Tres workflows en `.github/workflows/`:
+
+- **`ci.yml`**: en cada push/PR — lint (`ruff`), tests con cobertura
+  mínima del 80%, y `terraform fmt -check` + `terraform validate`
+  (sin credenciales AWS, solo sintaxis).
+- **`terraform-plan.yml`**: en PRs que tocan `terraform/` — plan real
+  contra AWS vía el rol OIDC, para ver el diff antes de fusionar.
+- **`terraform-apply.yml`**: solo manual (`workflow_dispatch`, botón
+  "Run workflow" en la pestaña Actions) — nunca automático en un
+  merge.
+
+### Configuración única del repo en GitHub (manual, no la hace Terraform)
+
+1. **Secrets** (Settings → Secrets and variables → Actions → *Secrets*):
+   - `BUDGET_ALERT_EMAIL`
+   - `REPORT_EMAIL`
+2. **Variable** (misma pantalla, pestaña *Variables* — no es secreta,
+   es un ARN, no un credencial):
+   - `AWS_ROLE_ARN` = output `github_actions_role_arn` de `terraform
+     apply` (algo como
+     `arn:aws:iam::<cuenta>:role/vintedlens-dev-github-actions`)
+
+Sin esto, `terraform-plan.yml` y `terraform-apply.yml` fallan al
+intentar asumir el rol o al faltarles las variables de Terraform —
+`ci.yml` no necesita nada de esto, corre sin credenciales AWS.
 
 ## Stack técnico
 
