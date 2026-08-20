@@ -43,3 +43,9 @@ variable "bedrock_model_id" {
   type        = string
   default     = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
 }
+
+variable "github_repository" {
+  description = "Repositorio de GitHub (formato usuario/repo) autorizado a asumir el rol de GitHub Actions vía OIDC."
+  type        = string
+  default     = "M0r3n0SVQ/VintedLens"
+}

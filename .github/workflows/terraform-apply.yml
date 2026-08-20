@@ -1,0 +1,37 @@
+name: Terraform Apply
+
+# Solo manual: aplicar infraestructura no es algo que deba pasar
+# automáticamente en cada merge a main en un proyecto personal con
+# coste real (aunque sea mínimo). Se dispara a mano desde la pestaña
+# Actions, siempre desde main.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - run: terraform init -input=false
+
+      - run: terraform apply -input=false -auto-approve
+        env:
+          TF_VAR_budget_alert_email: ${{ secrets.BUDGET_ALERT_EMAIL }}
+          TF_VAR_report_email: ${{ secrets.REPORT_EMAIL }}

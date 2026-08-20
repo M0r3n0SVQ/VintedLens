@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: python -m ruff check .
+
+      - name: Tests + cobertura
+        run: python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=80
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      # -backend=false: valida sintaxis y tipos sin necesitar
+      # credenciales AWS ni acceso al estado remoto.
+      - name: Init (sin backend)
+        run: terraform init -backend=false
+
+      - name: Validate
+        run: terraform validate

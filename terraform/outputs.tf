@@ -32,3 +32,8 @@ output "report_email" {
   description = "Email del informe. AWS envía un correo de verificación a esta dirección al hacer apply; hay que confirmarlo antes de que SES pueda enviar el informe."
   value       = aws_ses_email_identity.report.email
 }
+
+output "github_actions_role_arn" {
+  description = "ARN del rol que asumen los workflows de GitHub Actions vía OIDC. Se usa como AWS_ROLE_ARN (variable de repo, no secret) en la configuración de GitHub Actions."
+  value       = aws_iam_role.github_actions.arn
+}
