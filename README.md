@@ -13,7 +13,9 @@ Parameter Store, Terraform, pytest, GitHub Actions) y de **Plendu**
 
 ## Estado del proyecto
 
-🚧 **Fase 1 en curso** — fundación del repo y de la infraestructura base.
+✅ **Fase 1 completada** — repo, Terraform base, bucket S3 desplegado,
+formato de CSV definido, guardarraíl de coste activo.
+🚧 **Fase 2 siguiente** — procesamiento con EventBridge + Lambda.
 
 ## Por qué este proyecto
 
@@ -117,9 +119,9 @@ superar ese límite.
 El trabajo avanza de forma intermitente; cada fase termina en un
 estado estable y funcional, sin depender de tiempo continuo.
 
-- [ ] **Fase 1 — Fundación** *(en curso)*: estructura del repo,
-  Terraform base, bucket S3 `raw/`, formato de CSV definido, ingesta
-  simple. README con arquitectura y decisiones.
+- [x] **Fase 1 — Fundación**: estructura del repo, Terraform base,
+  bucket S3 `raw/`, formato de CSV definido, ingesta simple. README
+  con arquitectura y decisiones.
 - [ ] **Fase 2 — Procesamiento**: EventBridge + Lambda de limpieza y
   cálculo de métricas. Parameter Store para configuración. Tests con
   pytest. Bucket `processed/`.
@@ -182,7 +184,21 @@ terraform apply
 
 `terraform plan` se ejecuta siempre antes de `apply`, nunca se salta
 este paso. El estado es local en esta fase (no hay backend remoto
-configurado todavía).
+configurado todavía, así que `terraform.tfstate` no se pierde solo si
+se borra el archivo — no hay copia en S3 hasta que se añada un backend
+remoto en una fase posterior).
+
+## Subir un CSV (ingesta manual, Fase 1)
+
+```bash
+aws s3 cp data/samples/inventory_sample.csv \
+  s3://<data_bucket_name>/raw/inventory_$(date +%Y%m%d).csv \
+  --profile <tu-perfil-aws>
+```
+
+`<data_bucket_name>` es el output `data_bucket_name` de `terraform
+apply`. En la Fase 2, esta subida disparará automáticamente el
+procesamiento vía EventBridge.
 
 ## Stack técnico
 
