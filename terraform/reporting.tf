@@ -45,6 +45,16 @@ data "aws_iam_policy_document" "reporting_lambda_permissions" {
     resources = ["${aws_s3_bucket.data.arn}/processed/*"]
   }
 
+  # Además de leer las métricas, esta Lambda ahora escribe el resumen y
+  # las sugerencias generadas por Bedrock (*_summary.json) para que el
+  # dashboard las pueda mostrar, no solo el email.
+  statement {
+    sid       = "WriteSummaryObjects"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.data.arn}/processed/*"]
+  }
+
   statement {
     sid     = "ReadReportingConfig"
     effect  = "Allow"

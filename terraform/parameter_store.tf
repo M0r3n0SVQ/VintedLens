@@ -38,7 +38,12 @@ resource "aws_ssm_parameter" "reporting_model_id" {
 }
 
 resource "aws_ssm_parameter" "reporting_max_tokens" {
-  name  = "${local.reporting_parameter_prefix}/max_tokens"
-  type  = "String"
-  value = "400"
+  name = "${local.reporting_parameter_prefix}/max_tokens"
+  type = "String"
+  # 400 se quedaba corto y cortaba el JSON a mitad cuando hay varias
+  # categorías con rotación baja (el caso normal: sin ventas todavía,
+  # todo cuenta como rotación baja). El prompt además limita a un
+  # máximo de 5 sugerencias, así que 1200 da margen real, no solo un
+  # número más grande sin más.
+  value = "1200"
 }
