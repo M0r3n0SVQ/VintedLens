@@ -125,6 +125,15 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.api.id
   name        = "$default"
   auto_deploy = true
+
+  # Sin límite, cualquiera podría probar la x-api-key a fuerza bruta
+  # (o simplemente generar tráfico) sin ningún techo. 5 req/s con
+  # ráfaga de 10 es de sobra para un dashboard de un solo usuario y
+  # cierra esa puerta sin coste ni complejidad añadida.
+  default_route_settings {
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
 }
 
 resource "aws_lambda_permission" "allow_apigateway" {

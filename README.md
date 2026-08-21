@@ -135,6 +135,25 @@ manda un email en cuanto aparece cualquier cargo real (umbral al 1%
 de un límite de 1 USD) y otro si el gasto previsto del mes va a
 superar ese límite.
 
+**Alarmas de CloudWatch en errores de Lambda, no solo alerta de
+coste.** El guardarraíl de presupuesto avisa de gasto, pero un fallo
+silencioso en `processing` o `reporting` no cuesta dinero — y sin
+alarma no hay forma de enterarse salvo mirando CloudWatch a mano (el
+síntoma sería "no me llegó el email" o "el dashboard tiene datos
+viejos", días después). `terraform/monitoring.tf` define una alarma
+por Lambda (`processing`, `reporting`, `api`) sobre la métrica
+`Errors`, con un topic SNS y suscripción por email — así el aviso
+dice directamente qué función falló. Una alarma por función en vez de
+una agregada: el email de alerta ya apunta por dónde empezar a mirar
+logs, sin tener que adivinarlo.
+
+**Throttling en el API Gateway.** Sin límite, cualquiera podría
+probar la `x-api-key` a fuerza bruta (o simplemente generar tráfico)
+sin ningún techo. 5 req/s con ráfaga de 10
+(`default_route_settings` en `terraform/api.tf`) es de sobra para un
+dashboard de un solo usuario y cierra esa puerta sin coste ni
+complejidad añadida — no hace falta WAF ni un plan de uso para esto.
+
 **Lambda sin dependencias de terceros, solo `boto3`.** El
 procesamiento (parsing de CSV, validación, cálculo de métricas) es
 lógica sencilla que la librería estándar de Python resuelve sin
@@ -291,6 +310,7 @@ VintedLens/
 │   ├── s3.tf                    # Bucket de datos (raw/ + processed/)
 │   ├── state.tf                 # Bucket de estado remoto de Terraform
 │   ├── budget.tf                # Alerta de coste (guardarraíl de gasto cero)
+│   ├── monitoring.tf             # Alarmas de CloudWatch (errores de Lambda) + SNS
 │   ├── parameter_store.tf       # Config de procesamiento y reporting
 │   ├── lambda_package.tf        # Zip de código compartido por las Lambdas
 │   ├── lambda_processing.tf     # Lambda de procesamiento + rol IAM + log group
@@ -552,6 +572,34 @@ incluirla en el JS público, lo que anularía la protección.
 curl -H "x-api-key: $(terraform output -raw api_key)" \
   "$(terraform output -raw api_endpoint)metrics"
 ```
+
+## Cómo reutilizarlo para otro negocio de reventa
+
+Aunque está construido para LoopVTG, no hay nada aquí atado a una
+cuenta o negocio en concreto — es una plantilla de IaC, no un script
+de un solo uso:
+
+1. **Haz fork y despliega en tu propia cuenta AWS.** Todo lo
+   específico de LoopVTG vive en `terraform.tfvars` (no versionado,
+   ver `terraform.tfvars.example`): nombre de proyecto, emails,
+   modelo de Bedrock. `terraform apply` crea un stack independiente
+   con su propio bucket, Lambdas y API — no comparte nada con el
+   despliegue original.
+2. **Adapta el enunciado de categorías** en
+   [`data/schema.md`](data/schema.md) a lo que vendas — el de
+   LoopVTG está pensado para ropa vintage (`vaqueros`, `sudaderas`,
+   `polos`...); otro tipo de reventa (electrónica, libros, muebles)
+   necesitaría su propio enum.
+3. **Sube tu CSV a `raw/`** siguiendo el mismo esquema y el resto del
+   pipeline funciona igual: procesamiento, métricas, resumen de IA
+   por artículo y dashboard, sin tocar código.
+
+El límite real no es técnico sino de escala: esto es "cada uno
+despliega su copia", no un SaaS multi-tenant (sin autenticación de
+usuarios, sin aislamiento por cliente, sin facturación). Para una
+cuenta personal de un solo vendedor es justo el punto correcto de
+complejidad; convertirlo en un producto multi-tenant real es un
+proyecto distinto y bastante más grande.
 
 ## Stack técnico
 
