@@ -29,8 +29,13 @@ cobertura, `terraform plan`/`apply`), autenticación OIDC sin
 credenciales estáticas. Los tres workflows verificados corriendo de
 verdad en GitHub (ver [CI/CD](#cicd-fase-4)).
 
+🚧 **Fase 5 en curso** — API HTTP (API Gateway + Lambda) desplegada y
+verificada contra AWS real (ver [API del dashboard](#api-del-dashboard-fase-5));
+falta el frontend Next.js en un repo separado.
+
 **Fases 1-4 completas — el pipeline funcional entero del CV.** La
-Fase 5 (dashboard con Plendu) queda como opcional para más adelante.
+Fase 5 (dashboard con Plendu) es opcional, en curso según el tiempo
+disponible.
 
 ## Por qué este proyecto
 
@@ -292,15 +297,17 @@ VintedLens/
 │   ├── reporting.tf             # Lambda de reporting + SES + rol IAM + log group
 │   ├── reporting_schedule.tf    # Disparo periódico (EventBridge programado)
 │   ├── github_oidc.tf           # Rol OIDC para GitHub Actions (sin access keys)
+│   ├── api.tf                   # API Gateway + Lambda del dashboard (Fase 5)
 │   ├── terraform.tfvars.example  # Plantilla de variables locales
-│   └── outputs.tf               # Nombres/ARNs de buckets, Lambdas y rol OIDC
+│   └── outputs.tf               # Nombres/ARNs de buckets, Lambdas, rol OIDC y API
 ├── data/
 │   ├── schema.md       # Formato del CSV de inventario/ventas
 │   └── samples/
 │       └── inventory_sample.csv
 ├── src/
 │   ├── processing/  # Lambda de procesamiento (parsing, métricas, handler)
-│   └── reporting/   # Lambda de reporting (deltas, prompt, Bedrock, SES)
+│   ├── reporting/   # Lambda de reporting (deltas, prompt, Bedrock, SES)
+│   └── api/         # Lambda de la API del dashboard (GET /metrics)
 ├── tests/                 # Tests pytest (funciones puras + integración con moto)
 ├── pyproject.toml         # Config de pytest + ruff
 ├── requirements-dev.txt   # Dependencias de test/lint (pytest, moto, ruff)
@@ -471,11 +478,39 @@ Sin esto, `terraform-plan.yml` y `terraform-apply.yml` fallan al
 intentar asumir el rol o al faltarles las variables de Terraform —
 `ci.yml` no necesita nada de esto, corre sin credenciales AWS.
 
+## API del dashboard (Fase 5)
+
+Un HTTP API de API Gateway (`GET /metrics`) delante de una Lambda que
+devuelve el snapshot de métricas más reciente y un historial corto
+(hasta 10 anteriores) de `processed/`.
+
+**Por qué HTTP API y no REST API.** REST API (v1) trae de serie API
+keys + usage plans, pero para una sola ruta de solo lectura añade
+complejidad (planes de uso, etapas, límites) que no aporta nada aquí.
+HTTP API (v2) es más barato y simple; la protección se hace a mano
+comparando un header `x-api-key` contra un valor en Parameter Store
+(`SecureString`, generado por Terraform con `random_password`, nunca
+escrito a mano) usando `hmac.compare_digest` para evitar timing
+attacks.
+
+**Sin CORS configurado, a propósito.** El dashboard en Next.js
+llamará a esta API desde el servidor (Server Components / API
+routes), nunca desde el navegador. Así la clave vive solo en una
+variable de entorno de servidor en Vercel y nunca llega al bundle de
+cliente — si se llamara desde el navegador, la clave habría que
+incluirla en el JS público, lo que anularía la protección.
+
+```bash
+curl -H "x-api-key: $(terraform output -raw api_key)" \
+  "$(terraform output -raw api_endpoint)metrics"
+```
+
 ## Stack técnico
 
-AWS Lambda · Amazon EventBridge · Amazon S3 · AWS Systems Manager
-Parameter Store · Amazon Bedrock · Amazon SES · IAM · Terraform ·
-Python + pytest · GitHub Actions · (opcional) Next.js + API Gateway
+AWS Lambda · Amazon EventBridge · Amazon S3 · Amazon API Gateway ·
+AWS Systems Manager Parameter Store · Amazon Bedrock · Amazon SES ·
+IAM (OIDC federado) · Terraform · Python + pytest + ruff ·
+GitHub Actions · (Fase 5, pendiente) Next.js en Vercel
 
 ## Proyectos relacionados
 
