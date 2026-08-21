@@ -406,11 +406,15 @@ Lambda de reporting (`src/reporting/`), que:
 
 1. Lista `processed/` y coge el `*_metrics.json` más reciente (y el
    anterior, si existe, para calcular deltas).
-2. Construye un prompt con las métricas, los deltas y una instrucción
-   de resumen en español, máximo 150 palabras.
-3. Se lo pasa a Bedrock (Claude Haiku 4.5 vía Converse API) y recibe
-   el resumen en lenguaje natural.
-4. Lo envía por email vía SES.
+2. Construye un prompt con las métricas, los deltas, y pide a Bedrock
+   (Claude Haiku 4.5 vía Converse API) un JSON estructurado: un
+   resumen en español (máximo 150 palabras) más hasta 5 sugerencias
+   concretas de precio/título/fotos, una por cada categoría con
+   rotación baja.
+3. Envía el resumen (+ sugerencias en texto) por email vía SES.
+4. Guarda el mismo resumen y sugerencias como `*_summary.json` en
+   `processed/`, para que la API del dashboard (Fase 5) lo exponga
+   también ahí, no solo por email.
 
 ### Requisitos únicos (una sola vez por cuenta AWS)
 
@@ -442,6 +446,32 @@ EOF
 ```
 
 AWS avisa de que la propagación puede tardar hasta 15 minutos.
+
+3. **Aceptar el acuerdo de AWS Marketplace del modelo**: sin esto,
+   Bedrock devuelve `AccessDeniedException` — *"IAM user or service
+   role is not authorized to perform the required AWS Marketplace
+   actions (aws-marketplace:ViewSubscriptions, aws-marketplace:Subscribe)"* —
+   incluso con `bedrock:InvokeModel` correctamente concedido. Los
+   modelos de terceros en Bedrock (todos los de Anthropic incluidos)
+   se sirven a través de una suscripción de AWS Marketplace que hay
+   que aceptar explícitamente una vez por cuenta:
+
+```bash
+OFFER_TOKEN=$(aws bedrock list-foundation-model-agreement-offers \
+  --model-id anthropic.claude-haiku-4-5-20251001-v1:0 --region eu-west-1 \
+  --query 'offers[0].offerToken' --output text)
+
+aws bedrock create-foundation-model-agreement \
+  --model-id anthropic.claude-haiku-4-5-20251001-v1:0 \
+  --offer-token "$OFFER_TOKEN" --region eu-west-1
+```
+
+Comprueba el estado con `aws bedrock get-foundation-model-availability
+--model-id <id> --region <region>`: `agreementAvailability.status`
+pasa de `NOT_AVAILABLE` a `PENDING` y, tras uno o dos minutos, a
+`AVAILABLE`. Una vez aceptado, todos los roles IAM de la cuenta
+pueden invocar el modelo sin necesitar permisos de Marketplace ellos
+mismos — solo hace falta que alguien lo acepte una vez.
 
 ### Tests
 
@@ -482,8 +512,10 @@ intentar asumir el rol o al faltarles las variables de Terraform —
 ## API del dashboard (Fase 5)
 
 Un HTTP API de API Gateway (`GET /metrics`) delante de una Lambda que
-devuelve el snapshot de métricas más reciente y un historial corto
-(hasta 10 anteriores) de `processed/`.
+devuelve el snapshot de métricas más reciente, un historial corto
+(hasta 10 anteriores) y el resumen/sugerencias de IA más reciente
+generado por la Lambda de reporting (`ai_summary`, puede ser `null`
+si el reporting no se ha ejecutado todavía).
 
 **Por qué HTTP API y no REST API.** REST API (v1) trae de serie API
 keys + usage plans, pero para una sola ruta de solo lectura añade
@@ -494,9 +526,9 @@ comparando un header `x-api-key` contra un valor en Parameter Store
 escrito a mano) usando `hmac.compare_digest` para evitar timing
 attacks.
 
-**Sin CORS configurado, a propósito.** El dashboard en Next.js
-llamará a esta API desde el servidor (Server Components / API
-routes), nunca desde el navegador. Así la clave vive solo en una
+**Sin CORS configurado, a propósito.** El dashboard en Next.js llama
+a esta API desde el servidor (Server Components), nunca desde el
+navegador. Así la clave vive solo en una
 variable de entorno de servidor en Vercel y nunca llega al bundle de
 cliente — si se llamara desde el navegador, la clave habría que
 incluirla en el JS público, lo que anularía la protección.
