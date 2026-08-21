@@ -38,13 +38,13 @@ def _response(status: int, body: dict) -> dict[str, Any]:
     }
 
 
-def _list_metrics_objects() -> list[dict[str, Any]]:
-    """Lista los *_metrics.json de processed/, más recientes primero."""
+def _list_processed_objects(suffix: str) -> list[dict[str, Any]]:
+    """Lista los objetos de processed/ con el sufijo dado, más recientes primero."""
     paginator = s3.get_paginator("list_objects_v2")
     objects: list[dict[str, Any]] = []
     for page in paginator.paginate(Bucket=DATA_BUCKET, Prefix="processed/"):
         for obj in page.get("Contents", []):
-            if obj["Key"].endswith("_metrics.json"):
+            if obj["Key"].endswith(suffix):
                 objects.append(obj)
     return sorted(objects, key=lambda o: (o["LastModified"], o["Key"]), reverse=True)
 
@@ -67,15 +67,23 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if not _is_authorized(event, config.api_key):
         return _response(401, {"error": "unauthorized"})
 
-    metrics_objects = _list_metrics_objects()
+    metrics_objects = _list_processed_objects("_metrics.json")
     if not metrics_objects:
-        return _response(200, {"latest": None, "history": []})
+        return _response(200, {"latest": None, "history": [], "ai_summary": None})
 
     try:
         latest = _load_json(metrics_objects[0]["Key"])
         history = [_load_json(obj["Key"]) for obj in metrics_objects[1 : HISTORY_LIMIT + 1]]
+
+        # El resumen de IA lo genera una Lambda distinta (reporting), en su
+        # propio horario: puede no existir todavía, o no corresponder
+        # exactamente al último *_metrics.json si el reporting no se ha
+        # ejecutado desde la última subida. Se expone el más reciente que
+        # haya, sea cual sea su fecha.
+        summary_objects = _list_processed_objects("_summary.json")
+        ai_summary = _load_json(summary_objects[0]["Key"]) if summary_objects else None
     except ClientError:
-        logger.exception("No se pudieron leer las métricas de %s", DATA_BUCKET)
+        logger.exception("No se pudieron leer los datos de %s", DATA_BUCKET)
         return _response(500, {"error": "internal_error"})
 
-    return _response(200, {"latest": latest, "history": history})
+    return _response(200, {"latest": latest, "history": history, "ai_summary": ai_summary})

@@ -55,7 +55,7 @@ def test_handler_returns_empty_when_no_metrics_yet(
 
     assert result["statusCode"] == 200
     body = json.loads(result["body"])
-    assert body == {"latest": None, "history": []}
+    assert body == {"latest": None, "history": [], "ai_summary": None}
 
 
 @mock_aws
@@ -69,6 +69,11 @@ def test_handler_returns_latest_and_history(
     s3.create_bucket(Bucket=BUCKET, CreateBucketConfiguration={"LocationConstraint": REGION})
     _put_metrics(s3, "processed/inventory_20260601_metrics.json", total_count=5)
     _put_metrics(s3, "processed/inventory_20260701_metrics.json", total_count=8)
+    s3.put_object(
+        Bucket=BUCKET,
+        Key="processed/inventory_20260701_summary.json",
+        Body=json.dumps({"summary": "Todo bien.", "suggestions": []}).encode(),
+    )
 
     result = handler_module.handler(_event(API_KEY), context=None)
 
@@ -77,3 +82,21 @@ def test_handler_returns_latest_and_history(
     assert body["latest"]["overall"]["total_count"] == 8
     assert len(body["history"]) == 1
     assert body["history"][0]["overall"]["total_count"] == 5
+    assert body["ai_summary"] == {"summary": "Todo bien.", "suggestions": []}
+
+
+@mock_aws
+def test_handler_returns_ai_summary_none_when_reporting_has_not_run(
+    monkeypatch: pytest.MonkeyPatch, fake_config: ApiConfig
+) -> None:
+    monkeypatch.setattr(handler_module, "load_config", lambda: fake_config)
+    monkeypatch.setattr(handler_module, "DATA_BUCKET", BUCKET)
+
+    s3 = boto3.client("s3", region_name=REGION)
+    s3.create_bucket(Bucket=BUCKET, CreateBucketConfiguration={"LocationConstraint": REGION})
+    _put_metrics(s3, "processed/inventory_20260701_metrics.json", total_count=8)
+
+    result = handler_module.handler(_event(API_KEY), context=None)
+
+    body = json.loads(result["body"])
+    assert body["ai_summary"] is None

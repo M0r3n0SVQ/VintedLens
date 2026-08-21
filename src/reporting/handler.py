@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 import boto3
@@ -18,7 +19,7 @@ from botocore.exceptions import ClientError
 
 from . import bedrock_client
 from .config import load_config
-from .summarizer import build_prompt, compute_deltas
+from .summarizer import build_prompt, compute_deltas, parse_summary_response
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -69,11 +70,19 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     deltas = compute_deltas(latest, previous)
     prompt = build_prompt(latest, deltas, latest.get("currency", "EUR"))
 
-    summary = bedrock_client.invoke(
+    raw_response = bedrock_client.invoke(
         prompt=prompt,
         model_id=config.model_id,
         max_tokens=config.max_tokens,
     )
+    parsed = parse_summary_response(raw_response)
+    summary_text = parsed["summary"]
+    suggestions = parsed["suggestions"]
+
+    email_body = summary_text
+    if suggestions:
+        bullet_lines = "\n".join(f"- {s['category']}: {s['suggestion']}" for s in suggestions)
+        email_body = f"{summary_text}\n\nSugerencias:\n{bullet_lines}"
 
     try:
         ses.send_email(
@@ -81,22 +90,44 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             Destination={"ToAddresses": [REPORT_EMAIL]},
             Message={
                 "Subject": {"Data": "VintedLens - resumen de inventario", "Charset": "UTF-8"},
-                "Body": {"Text": {"Data": summary, "Charset": "UTF-8"}},
+                "Body": {"Text": {"Data": email_body, "Charset": "UTF-8"}},
             },
         )
     except ClientError:
         logger.exception("No se pudo enviar el email de reporting")
         raise
 
+    source_key = metrics_objects[0]["Key"]
+    summary_key = source_key.replace("_metrics.json", "_summary.json")
+    summary_payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "source_key": source_key,
+        "compared_to": metrics_objects[1]["Key"] if previous else None,
+        "summary": summary_text,
+        "suggestions": suggestions,
+    }
+
+    try:
+        s3.put_object(
+            Bucket=DATA_BUCKET,
+            Key=summary_key,
+            Body=json.dumps(summary_payload, ensure_ascii=False, indent=2).encode("utf-8"),
+            ContentType="application/json",
+        )
+    except ClientError:
+        logger.exception("No se pudo escribir %s", summary_key)
+        raise
+
     logger.info(
         "Informe enviado a %s a partir de %s (comparado con %s)",
         REPORT_EMAIL,
-        metrics_objects[0]["Key"],
+        source_key,
         metrics_objects[1]["Key"] if previous else "ninguno",
     )
 
     return {
         "status": "ok",
-        "source_key": metrics_objects[0]["Key"],
+        "source_key": source_key,
+        "summary_key": summary_key,
         "compared_to": metrics_objects[1]["Key"] if previous else None,
     }

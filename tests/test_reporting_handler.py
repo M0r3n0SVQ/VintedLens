@@ -57,10 +57,16 @@ def test_handler_sends_report_and_compares_with_previous(
     monkeypatch.setattr(handler_module, "REPORT_EMAIL", REPORT_EMAIL)
 
     captured_prompt: dict[str, str] = {}
+    fake_response = json.dumps(
+        {
+            "summary": "Resumen de prueba generado por Bedrock.",
+            "suggestions": [{"category": "vaqueros", "suggestion": "Baja el precio un 10%."}],
+        }
+    )
 
     def fake_invoke(prompt: str, model_id: str, max_tokens: int) -> str:
         captured_prompt["prompt"] = prompt
-        return "Resumen de prueba generado por Bedrock."
+        return fake_response
 
     monkeypatch.setattr(handler_module.bedrock_client, "invoke", fake_invoke)
 
@@ -87,7 +93,17 @@ def test_handler_sends_report_and_compares_with_previous(
     assert result["status"] == "ok"
     assert result["source_key"] == "processed/inventory_20260701_metrics.json"
     assert result["compared_to"] == "processed/inventory_20260601_metrics.json"
+    assert result["summary_key"] == "processed/inventory_20260701_summary.json"
     assert "sell_through_rate_change" in captured_prompt["prompt"]
+
     assert sent_emails[0]["Destination"]["ToAddresses"] == [REPORT_EMAIL]
-    expected_summary = "Resumen de prueba generado por Bedrock."
-    assert sent_emails[0]["Message"]["Body"]["Text"]["Data"] == expected_summary
+    email_body = sent_emails[0]["Message"]["Body"]["Text"]["Data"]
+    assert "Resumen de prueba generado por Bedrock." in email_body
+    assert "vaqueros: Baja el precio un 10%." in email_body
+
+    summary_object = s3.get_object(Bucket=BUCKET, Key=result["summary_key"])
+    summary_payload = json.loads(summary_object["Body"].read())
+    assert summary_payload["summary"] == "Resumen de prueba generado por Bedrock."
+    assert summary_payload["suggestions"] == [
+        {"category": "vaqueros", "suggestion": "Baja el precio un 10%."}
+    ]

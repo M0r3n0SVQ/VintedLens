@@ -1,4 +1,4 @@
-from reporting.summarizer import build_prompt, compute_deltas
+from reporting.summarizer import build_prompt, compute_deltas, parse_summary_response
 
 
 def _metrics(overall: dict, by_category: dict) -> dict:
@@ -60,3 +60,35 @@ def test_build_prompt_includes_deltas_when_present() -> None:
 
     assert "sell_through_rate_change" in prompt
     assert "-0.15" in prompt
+
+
+def test_parse_summary_response_parses_clean_json() -> None:
+    raw = (
+        '{"summary": "Rotación baja en sudaderas.", '
+        '"suggestions": [{"category": "sudaderas", "suggestion": "Baja el precio un 15%."}]}'
+    )
+
+    result = parse_summary_response(raw)
+
+    assert result["summary"] == "Rotación baja en sudaderas."
+    assert result["suggestions"] == [
+        {"category": "sudaderas", "suggestion": "Baja el precio un 15%."}
+    ]
+
+
+def test_parse_summary_response_strips_markdown_code_fence() -> None:
+    raw = '```json\n{"summary": "Todo bien.", "suggestions": []}\n```'
+
+    result = parse_summary_response(raw)
+
+    assert result["summary"] == "Todo bien."
+    assert result["suggestions"] == []
+
+
+def test_parse_summary_response_falls_back_to_raw_text_on_invalid_json() -> None:
+    raw = "Esto no es JSON, es un resumen en texto plano."
+
+    result = parse_summary_response(raw)
+
+    assert result["summary"] == raw
+    assert result["suggestions"] == []
