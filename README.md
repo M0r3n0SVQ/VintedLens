@@ -31,7 +31,7 @@ verdad en GitHub (ver [CI/CD](#cicd-fase-4)).
 
 ✅ **Fase 5 completada** — API HTTP (API Gateway + Lambda) desplegada
 y dashboard en Next.js publicado en Vercel, ambos verificados
-end-to-end contra datos reales: [vintedlens-dashboard.vercel.app](https://vintedlens-dashboard-n7su-8u1434ecu-m0r3n0svqs-projects.vercel.app/)
+end-to-end contra datos reales: [vintedlens-dashboard.vercel.app](https://vintedlens-dashboard.vercel.app/)
 · [repo del dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard).
 
 **Las 5 fases completas** — el pipeline serverless entero (1-4) más
