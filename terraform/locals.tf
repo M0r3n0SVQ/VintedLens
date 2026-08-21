@@ -14,6 +14,10 @@ locals {
   reporting_lambda_name      = "${var.project}-${var.environment}-reporting"
   reporting_parameter_prefix = "/${var.project}/${var.environment}/reporting"
 
+  api_lambda_name        = "${var.project}-${var.environment}-api"
+  api_gateway_name       = "${var.project}-${var.environment}-api"
+  api_key_parameter_name = "/${var.project}/${var.environment}/api/api_key"
+
   # Los modelos de Anthropic en Bedrock solo se pueden invocar a través
   # de un "inference profile" (bedrock_model_id, con prefijo de geografía
   # como "eu."), nunca con el ID del modelo base directamente. El ARN
