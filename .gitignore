@@ -44,3 +44,6 @@ data/processed/
 Thumbs.db
 .vscode/
 .idea/
+
+# --- Config local de previsualización (rutas absolutas de esta máquina) ---
+.claude/launch.json
