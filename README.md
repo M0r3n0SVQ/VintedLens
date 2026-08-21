@@ -520,7 +520,8 @@ simule fielmente.
 
 Tres workflows en `.github/workflows/`:
 
-- **`ci.yml`**: en cada push/PR — lint (`ruff`), tests con cobertura
+- **`ci.yml`**: en cada push/PR — escaneo de secretos (`gitleaks`,
+  gratis en repos públicos), lint (`ruff`), tests con cobertura
   mínima del 80%, y `terraform fmt -check` + `terraform validate`
   (sin credenciales AWS, solo sintaxis).
 - **`terraform-plan.yml`**: en PRs que tocan `terraform/` — plan real
@@ -528,6 +529,11 @@ Tres workflows en `.github/workflows/`:
 - **`terraform-apply.yml`**: solo manual (`workflow_dispatch`, botón
   "Run workflow" en la pestaña Actions) — nunca automático en un
   merge.
+
+Además, **Dependabot** (`.github/dependabot.yml`) abre PRs semanales
+para actualizar dependencias de Python, providers de Terraform y las
+propias GitHub Actions usadas en los workflows — mantenimiento
+pasivo, no hay que acordarse de revisar versiones a mano.
 
 ### Configuración única del repo en GitHub (manual, no la hace Terraform)
 
