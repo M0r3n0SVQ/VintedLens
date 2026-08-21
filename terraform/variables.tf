@@ -45,7 +45,19 @@ variable "bedrock_model_id" {
 }
 
 variable "github_repository" {
-  description = "Repositorio de GitHub (formato usuario/repo) autorizado a asumir el rol de GitHub Actions vía OIDC."
+  description = "Repositorio de GitHub (formato usuario/repo) autorizado a asumir el rol de GitHub Actions vía OIDC. Solo para referencia/documentación: la condición de IAM usa los IDs inmutables (ver github_owner_id / github_repository_id), no este nombre."
   type        = string
   default     = "M0r3n0SVQ/VintedLens"
+}
+
+variable "github_owner_id" {
+  description = "ID numérico inmutable del usuario/organización de GitHub (campo 'owner.id' de GET /repos/{owner}/{repo}, o el claim 'sub' de un token OIDC real). Los repos de GitHub creados a partir del 15/07/2026 emiten el claim 'sub' con este ID en vez del nombre, para que un cambio de nombre de usuario no reasigne la confianza a otra cuenta."
+  type        = string
+  default     = "149697698"
+}
+
+variable "github_repository_id" {
+  description = "ID numérico inmutable del repositorio (campo 'id' de GET /repos/{owner}/{repo}). Mismo motivo que github_owner_id."
+  type        = string
+  default     = "1341147360"
 }

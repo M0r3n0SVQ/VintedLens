@@ -20,6 +20,9 @@ locals {
   # del modelo base (sin el prefijo) también hace falta en la política
   # IAM: ver reporting.tf.
   bedrock_foundation_model_id = trimprefix(var.bedrock_model_id, "eu.")
+
+  github_owner_name = split("/", var.github_repository)[0]
+  github_repo_name  = split("/", var.github_repository)[1]
 }
 
 data "aws_caller_identity" "current" {}

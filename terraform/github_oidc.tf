@@ -33,10 +33,19 @@ data "aws_iam_policy_document" "github_actions_assume" {
     # desde un fork no cuenta: GitHub no concede id-token/secrets a
     # "pull_request" de forks por defecto, así que no hace falta
     # restringir más para un repo de un solo mantenedor.
+    #
+    # Usa el formato de claim "sub" inmutable (con @<owner_id> y
+    # @<repo_id>), no el basado solo en nombre: los repos creados a
+    # partir del 15/07/2026 lo emiten así por defecto, para que un
+    # cambio de nombre de usuario/repo no reasigne esta confianza a
+    # otra cuenta. El formato antiguo (repo:usuario/repo:*) da
+    # "Not authorized to perform sts:AssumeRoleWithWebIdentity" contra
+    # este tipo de repo, aunque el resto de la política sea correcto
+    # — verificado con un token real, no es una suposición.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:*"]
+      values   = ["repo:${local.github_owner_name}@${var.github_owner_id}/${local.github_repo_name}@${var.github_repository_id}:*"]
     }
   }
 }
