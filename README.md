@@ -24,10 +24,13 @@ contra AWS real.
 natural con Bedrock, envío por SES. Verificado de extremo a extremo:
 email real recibido con un resumen generado por IA a partir de las
 métricas.
-🚧 **Fase 4 en curso** — CI/CD con GitHub Actions, linting, cobertura
-de tests. El código y los workflows están listos y verificados en
-local; falta el primer push al repo remoto para confirmarlos
-corriendo en GitHub de verdad (ver [CI/CD](#cicd-fase-4)).
+✅ **Fase 4 completada** — CI/CD con GitHub Actions (lint, tests,
+cobertura, `terraform plan`/`apply`), autenticación OIDC sin
+credenciales estáticas. Los tres workflows verificados corriendo de
+verdad en GitHub (ver [CI/CD](#cicd-fase-4)).
+
+**Fases 1-4 completas — el pipeline funcional entero del CV.** La
+Fase 5 (dashboard con Plendu) queda como opcional para más adelante.
 
 ## Por qué este proyecto
 
@@ -234,6 +237,20 @@ errores de SSM/Bedrock difíciles de testear con sentido, sin renunciar
 a una cobertura real del código de negocio (parsing, métricas,
 deltas, prompt).
 
+**La política de confianza de OIDC usa el claim `sub` inmutable
+(`repo:usuario@id_usuario/repo@id_repo`), no el formato clásico
+solo-por-nombre.** GitHub cambió el formato por defecto del claim
+`sub` para repos creados a partir del 15/07/2026 (este repo cae en
+esa ventana): añade los IDs numéricos inmutables de usuario y repo,
+para que un cambio de nombre no reasigne la confianza a otra cuenta.
+Con la condición `repo:usuario/repo:*` de toda la documentación
+"clásica" de AWS+GitHub OIDC, `sts:AssumeRoleWithWebIdentity` falla
+con `Not authorized` aunque el resto de la configuración (rol,
+proveedor OIDC, variable en GitHub) sea perfecta — no hay forma de
+verlo sin decodificar un token real. Se depuró añadiendo
+temporalmente un paso que decodifica el JWT del propio token OIDC y
+publica sus claims como anotación del workflow.
+
 ## Plan de fases
 
 El trabajo avanza de forma intermitente; cada fase termina en un
@@ -247,7 +264,7 @@ estado estable y funcional, sin depender de tiempo continuo.
   pytest. Bucket `processed/`.
 - [x] **Fase 3 — IA + Reporting**: integración con Bedrock para el
   resumen en lenguaje natural. Lambda de reporting + envío por SES.
-- [ ] **Fase 4 — CI/CD y calidad**: GitHub Actions completo (tests +
+- [x] **Fase 4 — CI/CD y calidad**: GitHub Actions completo (tests +
   despliegue Terraform), linting, cobertura de tests, documentación
   final del README, diagrama de arquitectura actualizado.
 - [ ] **Fase 5 (opcional)** — Dashboard: API Gateway + frontend
