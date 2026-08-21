@@ -17,7 +17,9 @@ def fake_config() -> ReportingConfig:
     return ReportingConfig(model_id="amazon.nova-micro-v1:0", max_tokens=400)
 
 
-def _put_metrics(s3, key: str, overall_total: int, sell_through_rate: float) -> None:
+def _put_metrics(
+    s3, key: str, overall_total: int, sell_through_rate: float, low_rotation: bool = True
+) -> None:
     payload = {
         "currency": "EUR",
         "overall": {"total_count": overall_total},
@@ -26,10 +28,20 @@ def _put_metrics(s3, key: str, overall_total: int, sell_through_rate: float) -> 
                 "sell_through_rate": sell_through_rate,
                 "avg_sale_price": 20.0,
                 "total_count": overall_total,
+                "low_rotation": low_rotation,
             }
         },
     }
     s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(payload).encode("utf-8"))
+
+
+def _put_clean_csv(s3, key: str) -> None:
+    csv_body = (
+        "item_id,title,category,brand,size,condition,cost_price,listing_price,"
+        "sale_price,listed_date,sold_date,status,platform\n"
+        "LV-0001,Vaqueros Levi's 501,vaqueros,levis,M,bueno,8.00,20.00,,2026-07-01,,listed,vinted\n"
+    )
+    s3.put_object(Bucket=BUCKET, Key=key, Body=csv_body.encode("utf-8"))
 
 
 @mock_aws
@@ -60,7 +72,13 @@ def test_handler_sends_report_and_compares_with_previous(
     fake_response = json.dumps(
         {
             "summary": "Resumen de prueba generado por Bedrock.",
-            "suggestions": [{"category": "vaqueros", "suggestion": "Baja el precio un 10%."}],
+            "suggestions": [
+                {
+                    "item_id": "LV-0001",
+                    "title": "Vaqueros Levi's 501",
+                    "suggestion": "Baja el precio un 10%.",
+                }
+            ],
         }
     )
 
@@ -87,6 +105,7 @@ def test_handler_sends_report_and_compares_with_previous(
     _put_metrics(
         s3, "processed/inventory_20260701_metrics.json", overall_total=8, sell_through_rate=0.65
     )
+    _put_clean_csv(s3, "processed/inventory_20260701_clean.csv")
 
     result = handler_module.handler({}, context=None)
 
@@ -99,11 +118,17 @@ def test_handler_sends_report_and_compares_with_previous(
     assert sent_emails[0]["Destination"]["ToAddresses"] == [REPORT_EMAIL]
     email_body = sent_emails[0]["Message"]["Body"]["Text"]["Data"]
     assert "Resumen de prueba generado por Bedrock." in email_body
-    assert "vaqueros: Baja el precio un 10%." in email_body
+    assert "Vaqueros Levi's 501: Baja el precio un 10%." in email_body
 
     summary_object = s3.get_object(Bucket=BUCKET, Key=result["summary_key"])
     summary_payload = json.loads(summary_object["Body"].read())
     assert summary_payload["summary"] == "Resumen de prueba generado por Bedrock."
     assert summary_payload["suggestions"] == [
-        {"category": "vaqueros", "suggestion": "Baja el precio un 10%."}
+        {
+            "item_id": "LV-0001",
+            "title": "Vaqueros Levi's 501",
+            "suggestion": "Baja el precio un 10%.",
+        }
     ]
+    assert "LV-0001" in captured_prompt["prompt"]
+    assert "Vaqueros Levi's 501" in captured_prompt["prompt"]

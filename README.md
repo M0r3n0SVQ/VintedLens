@@ -405,16 +405,31 @@ Una regla EventBridge programada (semanal por defecto) dispara la
 Lambda de reporting (`src/reporting/`), que:
 
 1. Lista `processed/` y coge el `*_metrics.json` más reciente (y el
-   anterior, si existe, para calcular deltas).
-2. Construye un prompt con las métricas, los deltas, y pide a Bedrock
-   (Claude Haiku 4.5 vía Converse API) un JSON estructurado: un
-   resumen en español (máximo 150 palabras) más hasta 5 sugerencias
-   concretas de precio/título/fotos, una por cada categoría con
-   rotación baja.
-3. Envía el resumen (+ sugerencias en texto) por email vía SES.
-4. Guarda el mismo resumen y sugerencias como `*_summary.json` en
+   anterior, si existe, para calcular deltas), más el `*_clean.csv`
+   correspondiente para tener los artículos reales, no solo agregados.
+2. Elige hasta 8 artículos concretos para sugerencias individuales:
+   solo los que siguen `listed` (vendidos/reservados/retirados no
+   necesitan ayuda para venderse) en categorías con rotación baja,
+   priorizando por precio de listado descendente — ahí hay más
+   capital inmovilizado. Acota el prompt aunque el catálogo crezca.
+3. Construye un prompt con las métricas, los deltas y esos artículos
+   (con su título real), y pide a Bedrock (Claude Haiku 4.5 vía
+   Converse API) un JSON estructurado: un resumen en español (máximo
+   150 palabras) más una sugerencia concreta **por artículo**, no por
+   categoría.
+4. Envía el resumen (+ sugerencias en texto) por email vía SES.
+5. Guarda el mismo resumen y sugerencias como `*_summary.json` en
    `processed/`, para que la API del dashboard (Fase 5) lo exponga
    también ahí, no solo por email.
+
+**Por qué por artículo y no por categoría.** La primera versión daba
+un consejo genérico por categoría ("añade marca y talla al título"),
+pero sin ver los títulos reales acababa sugiriendo cosas que el
+usuario ya hacía. Pasarle a Bedrock el título real de cada artículo
+("Polo Fred Perry Twin Tipped blanco crema logo laurel bordado...")
+le permite dar feedback que de verdad depende de lo que ya está
+escrito — por ejemplo, señalar que falta la década/época en vez de
+repetir que falta la marca, que ya está ahí.
 
 ### Requisitos únicos (una sola vez por cuenta AWS)
 

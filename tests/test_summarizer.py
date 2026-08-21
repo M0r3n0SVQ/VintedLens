@@ -1,4 +1,9 @@
-from reporting.summarizer import build_prompt, compute_deltas, parse_summary_response
+from reporting.summarizer import (
+    build_prompt,
+    compute_deltas,
+    parse_summary_response,
+    select_items_for_suggestions,
+)
 
 
 def _metrics(overall: dict, by_category: dict) -> dict:
@@ -46,7 +51,7 @@ def test_compute_deltas_skips_none_metrics() -> None:
 
 def test_build_prompt_notes_first_report_without_previous() -> None:
     latest = _metrics({"total_count": 3}, {})
-    prompt = build_prompt(latest, deltas={}, currency="EUR")
+    prompt = build_prompt(latest, deltas={}, currency="EUR", items=[])
 
     assert "primer informe" in prompt
     assert "EUR" in prompt
@@ -56,10 +61,48 @@ def test_build_prompt_includes_deltas_when_present() -> None:
     latest = _metrics({"total_count": 3}, {})
     deltas = {"vaqueros": {"sell_through_rate_change": -0.15}}
 
-    prompt = build_prompt(latest, deltas, currency="EUR")
+    prompt = build_prompt(latest, deltas, currency="EUR", items=[])
 
     assert "sell_through_rate_change" in prompt
     assert "-0.15" in prompt
+
+
+def test_build_prompt_includes_item_titles() -> None:
+    latest = _metrics({"total_count": 1}, {})
+    items = [{"item_id": "LV-0001", "title": "Polo Fred Perry vintage", "listing_price": 15.0}]
+
+    prompt = build_prompt(latest, deltas={}, currency="EUR", items=items)
+
+    assert "Polo Fred Perry vintage" in prompt
+    assert "LV-0001" in prompt
+
+
+def test_select_items_for_suggestions_filters_by_status_and_low_rotation() -> None:
+    by_category = {
+        "vaqueros": {"low_rotation": True},
+        "polos": {"low_rotation": False},
+    }
+    items = [
+        {"item_id": "LV-1", "status": "listed", "category": "vaqueros", "listing_price": 20.0},
+        {"item_id": "LV-2", "status": "sold", "category": "vaqueros", "listing_price": 30.0},
+        {"item_id": "LV-3", "status": "listed", "category": "polos", "listing_price": 15.0},
+    ]
+
+    selected = select_items_for_suggestions(items, by_category)
+
+    assert [item["item_id"] for item in selected] == ["LV-1"]
+
+
+def test_select_items_for_suggestions_caps_and_sorts_by_price_desc() -> None:
+    by_category = {"vaqueros": {"low_rotation": True}}
+    items = [
+        {"item_id": f"LV-{i}", "status": "listed", "category": "vaqueros", "listing_price": i}
+        for i in range(10)
+    ]
+
+    selected = select_items_for_suggestions(items, by_category, limit=3)
+
+    assert [item["item_id"] for item in selected] == ["LV-9", "LV-8", "LV-7"]
 
 
 def test_parse_summary_response_parses_clean_json() -> None:

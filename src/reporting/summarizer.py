@@ -9,25 +9,29 @@ from __future__ import annotations
 import json
 import re
 
+MAX_ITEM_SUGGESTIONS = 8
+
 PROMPT_INSTRUCTIONS = (
     "Eres un analista que ayuda a llevar un negocio de reventa de ropa "
-    "vintage en Vinted. A partir de las métricas de inventario de abajo, "
-    "responde ÚNICAMENTE con un objeto JSON (sin markdown, sin texto "
-    "fuera del JSON) con esta forma exacta:\n"
+    "vintage en Vinted. A partir de las métricas de inventario y los "
+    "artículos concretos de abajo, responde ÚNICAMENTE con un objeto "
+    "JSON (sin markdown, sin texto fuera del JSON) con esta forma "
+    "exacta:\n"
     '{"summary": "resumen breve en español, máximo 150 palabras, tono '
     "directo y práctico, destacando lo más relevante: categorías con "
     "rotación baja, cambios notables respecto al informe anterior si "
     'los hay. No repitas todas las cifras, elige las que importan.", '
-    '"suggestions": [{"category": "...", "suggestion": "una acción '
-    "concreta y accionable para vender más rápido en esa categoría: "
-    "precio, título/palabras clave de búsqueda, o estado/fotos — no "
-    'genérica"}]}\n'
-    "Incluye una entrada en suggestions solo por categorías marcadas "
-    "como rotación baja en los datos, como máximo 5 — si hay más de 5, "
-    "elige las de mayor volumen de stock sin vender. Si no hay ninguna "
-    "categoría con rotación baja, suggestions debe ser una lista vacía. "
-    "Sé conciso en cada sugerencia (máximo 2 frases) para no quedarte "
-    "sin espacio de respuesta."
+    '"suggestions": [{"item_id": "...", "title": "el título tal cual '
+    'aparece en los datos", "suggestion": "una mejora concreta para '
+    "ESE artículo — precio, qué falta o sobra en el título/palabras "
+    "de búsqueda, o fotos/estado. Basa la sugerencia en el título "
+    "real: si ya incluye marca/talla/estado, no le digas que los "
+    'añada, sugiere otra cosa"}]}\n'
+    "Cada entrada de suggestions es sobre UN artículo de la lista de "
+    "abajo, no sobre una categoría entera. Máximo una sugerencia por "
+    "artículo de los listados. Si la lista de artículos está vacía, "
+    "suggestions debe ser una lista vacía. Sé conciso (máximo 2 "
+    "frases por sugerencia) para no quedarte sin espacio de respuesta."
 )
 
 
@@ -85,14 +89,43 @@ def compute_deltas(latest: dict, previous: dict | None) -> dict:
     return deltas
 
 
-def build_prompt(latest: dict, deltas: dict, currency: str) -> str:
-    """Arma el prompt que se envía a Bedrock a partir de métricas y deltas."""
+def select_items_for_suggestions(
+    items: list[dict], by_category: dict, limit: int = MAX_ITEM_SUGGESTIONS
+) -> list[dict]:
+    """Elige qué artículos concretos le pasamos a Bedrock para sugerencias.
+
+    Solo artículos todavía listados (vendidos/reservados/retirados ya
+    no necesitan una sugerencia de venta) en categorías marcadas como
+    rotación baja. Se acota a `limit` para que el prompt no crezca sin
+    límite con catálogos grandes: prioriza por precio de listado
+    descendente, ya que ahí hay más capital inmovilizado.
+    """
+    low_rotation_categories = {
+        category for category, metrics in by_category.items() if metrics.get("low_rotation")
+    }
+
+    candidates = [
+        item
+        for item in items
+        if item.get("status") == "listed" and item.get("category") in low_rotation_categories
+    ]
+
+    candidates.sort(key=lambda item: item.get("listing_price") or 0, reverse=True)
+    return candidates[:limit]
+
+
+def build_prompt(latest: dict, deltas: dict, currency: str, items: list[dict]) -> str:
+    """Arma el prompt que se envía a Bedrock a partir de métricas, deltas y artículos."""
+    item_fields = ("item_id", "title", "category", "brand", "size", "condition", "listing_price")
+    items_payload = [{field: item.get(field) for field in item_fields} for item in items]
+
     lines = [
         PROMPT_INSTRUCTIONS,
         "",
         f"Moneda: {currency}",
         f"Resumen global: {json.dumps(latest.get('overall', {}), ensure_ascii=False)}",
         f"Por categoría: {json.dumps(latest.get('by_category', {}), ensure_ascii=False)}",
+        f"Artículos para sugerencias individuales: {json.dumps(items_payload, ensure_ascii=False)}",
     ]
 
     if deltas:

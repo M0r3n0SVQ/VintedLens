@@ -8,6 +8,8 @@ por cada archivo).
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 import os
@@ -19,7 +21,12 @@ from botocore.exceptions import ClientError
 
 from . import bedrock_client
 from .config import load_config
-from .summarizer import build_prompt, compute_deltas, parse_summary_response
+from .summarizer import (
+    build_prompt,
+    compute_deltas,
+    parse_summary_response,
+    select_items_for_suggestions,
+)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -55,6 +62,28 @@ def _load_json(key: str) -> dict:
     return json.loads(body)
 
 
+def _load_clean_items(key: str) -> list[dict]:
+    """Lee el *_clean.csv correspondiente y devuelve las filas como dicts.
+
+    listing_price se convierte a float para poder ordenar por precio;
+    si el archivo no existe todavía (procesamiento y reporting pueden
+    desincronizarse) se devuelve una lista vacía en vez de fallar.
+    """
+    try:
+        body = s3.get_object(Bucket=DATA_BUCKET, Key=key)["Body"].read().decode("utf-8")
+    except ClientError:
+        logger.warning("No se encontró %s, sin artículos para sugerencias individuales", key)
+        return []
+
+    rows = list(csv.DictReader(io.StringIO(body)))
+    for row in rows:
+        try:
+            row["listing_price"] = float(row["listing_price"])
+        except (KeyError, ValueError):
+            row["listing_price"] = None
+    return rows
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Punto de entrada de la Lambda: genera y envía el informe periódico."""
     config = load_config()
@@ -68,7 +97,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     previous = _load_json(metrics_objects[1]["Key"]) if len(metrics_objects) > 1 else None
 
     deltas = compute_deltas(latest, previous)
-    prompt = build_prompt(latest, deltas, latest.get("currency", "EUR"))
+
+    clean_key = metrics_objects[0]["Key"].replace("_metrics.json", "_clean.csv")
+    clean_items = _load_clean_items(clean_key)
+    items_for_suggestions = select_items_for_suggestions(clean_items, latest.get("by_category", {}))
+
+    prompt = build_prompt(latest, deltas, latest.get("currency", "EUR"), items_for_suggestions)
 
     raw_response = bedrock_client.invoke(
         prompt=prompt,
@@ -81,8 +115,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     email_body = summary_text
     if suggestions:
-        bullet_lines = "\n".join(f"- {s['category']}: {s['suggestion']}" for s in suggestions)
-        email_body = f"{summary_text}\n\nSugerencias:\n{bullet_lines}"
+        bullet_lines = "\n".join(
+            f"- {s.get('title', s.get('item_id', '?'))}: {s['suggestion']}" for s in suggestions
+        )
+        email_body = f"{summary_text}\n\nSugerencias por artículo:\n{bullet_lines}"
 
     try:
         ses.send_email(
