@@ -29,13 +29,14 @@ cobertura, `terraform plan`/`apply`), autenticación OIDC sin
 credenciales estáticas. Los tres workflows verificados corriendo de
 verdad en GitHub (ver [CI/CD](#cicd-fase-4)).
 
-🚧 **Fase 5 en curso** — API HTTP (API Gateway + Lambda) desplegada y
-verificada contra AWS real (ver [API del dashboard](#api-del-dashboard-fase-5));
-falta el frontend Next.js en un repo separado.
+✅ **Fase 5 completada** — API HTTP (API Gateway + Lambda) desplegada
+y dashboard en Next.js publicado en Vercel, ambos verificados
+end-to-end contra datos reales: [vintedlens-dashboard.vercel.app](https://vintedlens-dashboard-n7su-8u1434ecu-m0r3n0svqs-projects.vercel.app/)
+· [repo del dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard).
 
-**Fases 1-4 completas — el pipeline funcional entero del CV.** La
-Fase 5 (dashboard con Plendu) es opcional, en curso según el tiempo
-disponible.
+**Las 5 fases completas** — el pipeline serverless entero (1-4) más
+el dashboard opcional (5) conectando ambos proyectos del portfolio,
+en vez de dejarlos como piezas sueltas.
 
 ## Por qué este proyecto
 
@@ -272,7 +273,7 @@ estado estable y funcional, sin depender de tiempo continuo.
 - [x] **Fase 4 — CI/CD y calidad**: GitHub Actions completo (tests +
   despliegue Terraform), linting, cobertura de tests, documentación
   final del README, diagrama de arquitectura actualizado.
-- [ ] **Fase 5 (opcional)** — Dashboard: API Gateway + frontend
+- [x] **Fase 5 (opcional)** — Dashboard: API Gateway + frontend
   Next.js en Vercel, conectando con Plendu.
 
 Las fases 1-4 son el proyecto completo para portfolio/CV. La fase 5
@@ -510,13 +511,16 @@ curl -H "x-api-key: $(terraform output -raw api_key)" \
 AWS Lambda · Amazon EventBridge · Amazon S3 · Amazon API Gateway ·
 AWS Systems Manager Parameter Store · Amazon Bedrock · Amazon SES ·
 IAM (OIDC federado) · Terraform · Python + pytest + ruff ·
-GitHub Actions · (Fase 5, pendiente) Next.js en Vercel
+GitHub Actions · Next.js en Vercel
 
 ## Proyectos relacionados
 
 - **AWS FinOps Monitor** — monitorización de costes AWS con el mismo
   stack serverless base.
-- **Plendu** — SaaS en Next.js con IA (OpenAI gpt-4o-mini vision), al
-  que VintedLens se conecta en la Fase 5 opcional.
+- **Plendu** — SaaS en Next.js con IA (OpenAI gpt-4o-mini vision),
+  cuyos patrones (Next.js + Vercel) reutiliza el dashboard de la
+  Fase 5.
+- **[vintedlens-dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard)**
+  — el frontend de la Fase 5, desplegado en Vercel.
 
 *(Enlaces pendientes de añadir cuando los repos estén publicados.)*
