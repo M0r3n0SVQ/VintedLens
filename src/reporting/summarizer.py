@@ -31,7 +31,9 @@ PROMPT_INSTRUCTIONS = (
     "abajo, no sobre una categoría entera. Máximo una sugerencia por "
     "artículo de los listados. Si la lista de artículos está vacía, "
     "suggestions debe ser una lista vacía. Sé conciso (máximo 2 "
-    "frases por sugerencia) para no quedarte sin espacio de respuesta."
+    "frases por sugerencia) para no quedarte sin espacio de respuesta. "
+    "Si mencionas un rango de porcentajes o precios, ordénalo siempre "
+    "de menor a mayor (ej. '0-14%', nunca '14-0%')."
 )
 
 
