@@ -2,6 +2,7 @@ import json
 
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from moto import mock_aws
 
 from api import handler as handler_module
@@ -100,3 +101,22 @@ def test_handler_returns_ai_summary_none_when_reporting_has_not_run(
 
     body = json.loads(result["body"])
     assert body["ai_summary"] is None
+
+
+def test_handler_returns_500_when_s3_listing_fails(
+    monkeypatch: pytest.MonkeyPatch, fake_config: ApiConfig
+) -> None:
+    """El listado inicial de processed/ también debe fallar de forma
+    controlada, no solo las lecturas posteriores (bug real: solo estaba
+    envuelto en try/except el bloque a partir de _load_json)."""
+    monkeypatch.setattr(handler_module, "load_config", lambda: fake_config)
+
+    def _boom(suffix: str) -> list[dict]:
+        raise ClientError({"Error": {"Code": "500", "Message": "boom"}}, "ListObjectsV2")
+
+    monkeypatch.setattr(handler_module, "_list_processed_objects", _boom)
+
+    result = handler_module.handler(_event(API_KEY), context=None)
+
+    assert result["statusCode"] == 500
+    assert json.loads(result["body"]) == {"error": "internal_error"}

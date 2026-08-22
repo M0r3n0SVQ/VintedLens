@@ -67,11 +67,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if not _is_authorized(event, config.api_key):
         return _response(401, {"error": "unauthorized"})
 
-    metrics_objects = _list_processed_objects("_metrics.json")
-    if not metrics_objects:
-        return _response(200, {"latest": None, "history": [], "ai_summary": None})
-
     try:
+        metrics_objects = _list_processed_objects("_metrics.json")
+        if not metrics_objects:
+            return _response(200, {"latest": None, "history": [], "ai_summary": None})
+
         latest = _load_json(metrics_objects[0]["Key"])
         history = [_load_json(obj["Key"]) for obj in metrics_objects[1 : HISTORY_LIMIT + 1]]
 
