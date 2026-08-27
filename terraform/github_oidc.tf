@@ -41,7 +41,7 @@ data "aws_iam_policy_document" "github_actions_assume" {
     # otra cuenta. El formato antiguo (repo:usuario/repo:*) da
     # "Not authorized to perform sts:AssumeRoleWithWebIdentity" contra
     # este tipo de repo, aunque el resto de la política sea correcto
-    # — verificado con un token real, no es una suposición.
+    # (verificado con un token real, no es una suposición).
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"

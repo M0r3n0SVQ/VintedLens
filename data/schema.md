@@ -52,8 +52,8 @@ este mismo esquema para no romper el resto del pipeline.
   Bueno", "excelente"...) sin ninguna garantía de cobertura. Fijar el
   vocabulario en el propio CSV traslada esa disciplina a la fuente.
 - **`platform` desde ya, aunque solo exista `vinted`**: si en el
-  futuro se vende también en otro canal, el esquema no cambia — solo
-  el valor de la columna.
+  futuro se vende también en otro canal, el esquema no cambia, solo
+  cambia el valor de la columna.
 
 ## Ejemplo
 

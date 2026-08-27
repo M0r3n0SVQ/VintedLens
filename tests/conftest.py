@@ -4,8 +4,8 @@ import pathlib
 import pytest
 
 # Credenciales falsas para moto. Los handlers crean sus clientes boto3
-# a nivel de módulo, en el import — antes de que ningún @mock_aws entre
-# en juego — así que botocore necesita encontrar algo con pinta de
+# a nivel de módulo, en el import, antes de que ningún @mock_aws entre
+# en juego, así que botocore necesita encontrar algo con pinta de
 # credencial ya en el entorno al arrancar, o falla con
 # NoCredentialsError incluso dentro de un test mockeado. En un runner
 # de CI limpio no hay nada de esto por defecto (a diferencia de una

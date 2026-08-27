@@ -23,7 +23,7 @@ PROMPT_INSTRUCTIONS = (
     'los hay. No repitas todas las cifras, elige las que importan.", '
     '"suggestions": [{"item_id": "...", "title": "el título tal cual '
     'aparece en los datos", "suggestion": "una mejora concreta para '
-    "ESE artículo — precio, qué falta o sobra en el título/palabras "
+    "ESE artículo: precio, qué falta o sobra en el título/palabras "
     "de búsqueda, o fotos/estado. Basa la sugerencia en el título "
     "real: si ya incluye marca/talla/estado, no le digas que los "
     'añada, sugiere otra cosa"}]}\n'

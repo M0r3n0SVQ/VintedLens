@@ -15,7 +15,7 @@ jobs:
 
       # Gratis en repos públicos, sin licencia. Escanea el historial
       # nuevo de cada push/PR en busca de claves, tokens o
-      # credenciales — una red de seguridad barata para un repo
+      # credenciales: una red de seguridad barata para un repo
       # público, no un sustituto de no commitear secretos nunca.
       - uses: gitleaks/gitleaks-action@v3
         env:

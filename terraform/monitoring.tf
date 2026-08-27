@@ -2,7 +2,7 @@
 # la de presupuesto (budget.tf), que avisa de gasto pero no de que
 # algo se haya roto. Un fallo silencioso en processing o reporting no
 # cuesta dinero, pero sí se nota (no llega el email, el dashboard se
-# queda con datos viejos) — y sin esto no habría forma de enterarse
+# queda con datos viejos), y sin esto no habría forma de enterarse
 # sin mirar CloudWatch a mano.
 
 resource "aws_sns_topic" "alerts" {

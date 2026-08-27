@@ -43,7 +43,7 @@ resource "aws_ssm_parameter" "reporting_max_tokens" {
   # 400 se quedaba corto y cortaba el JSON a mitad en cuanto había
   # varias sugerencias que generar. Ahora las sugerencias son por
   # artículo individual (título + contexto por cada uno, hasta 8), lo
-  # que pesa más que las de categoría que reemplazan — 2000 da margen
+  # que pesa más que las de categoría que reemplazan: 2000 da margen
   # real sin ser un número arbitrario más grande.
   value = "2000"
 }

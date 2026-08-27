@@ -5,7 +5,7 @@
 # verificar tanto el remitente como el destinatario. Usamos el mismo
 # email como ambos (el informe se lo manda uno mismo), así que basta
 # con verificar una sola identidad y no hace falta pedir salir del
-# sandbox — no tiene sentido para un único destinatario.
+# sandbox: no tiene sentido para un único destinatario.
 
 resource "aws_ses_email_identity" "report" {
   email = var.report_email
