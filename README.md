@@ -616,12 +616,11 @@ GitHub Actions · Next.js en Vercel
 
 ## Proyectos relacionados
 
-- **AWS FinOps Monitor**: monitorización de costes AWS con el mismo
-  stack serverless base.
-- **Plendu**: SaaS en Next.js con IA (OpenAI gpt-4o-mini vision),
-  cuyos patrones (Next.js + Vercel) reutiliza el dashboard de la
-  Fase 5.
+- **[AWS FinOps Monitor](https://github.com/M0r3n0SVQ/aws-finops-monitor)**:
+  monitorización de costes AWS con el mismo stack serverless base.
+- **[Plendu](https://github.com/M0r3n0SVQ/plendu)**
+  ([demo](https://plendu.vercel.app/)): SaaS en Next.js con IA
+  (OpenAI gpt-4o-mini vision), cuyos patrones (Next.js + Vercel)
+  reutiliza el dashboard de la Fase 5.
 - **[vintedlens-dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard)**:
   el frontend de la Fase 5, desplegado en Vercel.
-
-*(Enlaces pendientes de añadir cuando los repos estén publicados.)*
