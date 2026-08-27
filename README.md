@@ -15,26 +15,26 @@ Parameter Store, Terraform, pytest, GitHub Actions) y de **Plendu**
 
 ## Estado del proyecto
 
-✅ **Fase 1 completada** — repo, Terraform base, bucket S3 desplegado,
+✅ **Fase 1 completada**: repo, Terraform base, bucket S3 desplegado,
 formato de CSV definido, guardarraíl de coste activo.
-✅ **Fase 2 completada** — Lambda de procesamiento, EventBridge,
+✅ **Fase 2 completada**: Lambda de procesamiento, EventBridge,
 Parameter Store, tests con pytest. Verificado de extremo a extremo
 contra AWS real.
-✅ **Fase 3 completada** — Lambda de reporting, resumen en lenguaje
+✅ **Fase 3 completada**: Lambda de reporting, resumen en lenguaje
 natural con Bedrock, envío por SES. Verificado de extremo a extremo:
 email real recibido con un resumen generado por IA a partir de las
 métricas.
-✅ **Fase 4 completada** — CI/CD con GitHub Actions (lint, tests,
+✅ **Fase 4 completada**: CI/CD con GitHub Actions (lint, tests,
 cobertura, `terraform plan`/`apply`), autenticación OIDC sin
 credenciales estáticas. Los tres workflows verificados corriendo de
 verdad en GitHub (ver [CI/CD](#cicd-fase-4)).
 
-✅ **Fase 5 completada** — API HTTP (API Gateway + Lambda) desplegada
+✅ **Fase 5 completada**: API HTTP (API Gateway + Lambda) desplegada
 y dashboard en Next.js publicado en Vercel, ambos verificados
 end-to-end contra datos reales: [vintedlens-dashboard.vercel.app](https://vintedlens-dashboard.vercel.app/)
 · [repo del dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard).
 
-**Las 5 fases completas** — el pipeline serverless entero (1-4) más
+**Las 5 fases completas**: el pipeline serverless entero (1-4) más
 el dashboard opcional (5) conectando ambos proyectos del portfolio,
 en vez de dejarlos como piezas sueltas.
 
@@ -70,7 +70,7 @@ flowchart LR
 ### Flujo
 
 1. **Origen**: CSV de inventario/ventas con formato propio (definido en
-   este repo). Es la fuente de verdad manual — no hay integración con
+   este repo). Es la fuente de verdad manual, sin integración con
    la API de Vinted (ver decisión más abajo).
 2. **Ingesta**: subida manual del CSV a un bucket S3, prefijo `raw/`.
 3. **Procesamiento**: un evento `ObjectCreated` en EventBridge dispara
@@ -137,12 +137,12 @@ superar ese límite.
 
 **Alarmas de CloudWatch en errores de Lambda, no solo alerta de
 coste.** El guardarraíl de presupuesto avisa de gasto, pero un fallo
-silencioso en `processing` o `reporting` no cuesta dinero — y sin
+silencioso en `processing` o `reporting` no cuesta dinero. Sin
 alarma no hay forma de enterarse salvo mirando CloudWatch a mano (el
 síntoma sería "no me llegó el email" o "el dashboard tiene datos
 viejos", días después). `terraform/monitoring.tf` define una alarma
 por Lambda (`processing`, `reporting`, `api`) sobre la métrica
-`Errors`, con un topic SNS y suscripción por email — así el aviso
+`Errors`, con un topic SNS y suscripción por email, así el aviso
 dice directamente qué función falló. Una alarma por función en vez de
 una agregada: el email de alerta ya apunta por dónde empezar a mirar
 logs, sin tener que adivinarlo.
@@ -152,7 +152,7 @@ probar la `x-api-key` a fuerza bruta (o simplemente generar tráfico)
 sin ningún techo. 5 req/s con ráfaga de 10
 (`default_route_settings` en `terraform/api.tf`) es de sobra para un
 dashboard de un solo usuario y cierra esa puerta sin coste ni
-complejidad añadida — no hace falta WAF ni un plan de uso para esto.
+complejidad añadida, sin necesidad de WAF ni de un plan de uso para esto.
 
 **Lambda sin dependencias de terceros, solo `boto3`.** El
 procesamiento (parsing de CSV, validación, cálculo de métricas) es
@@ -176,7 +176,7 @@ sí compensaría.
 **El bucle EventBridge → Lambda no puede autodispararse.** La regla
 filtra explícitamente por prefijo `raw/`; la Lambda solo escribe en
 `processed/`. Así, sus propias escrituras nunca generan un nuevo
-evento que la vuelva a disparar — sin esto, un fallo de diseño
+evento que la vuelva a disparar. Sin esto, un fallo de diseño
 trivial podría convertirse en un bucle de invocaciones sin fin (y
 coste sin fin).
 
@@ -187,7 +187,7 @@ comodín.** Durante la verificación end-to-end la Lambda fallaba con
 evalúa `GetParametersByPath` contra la ruta exacta que se pide (sin
 `/*` al final), mientras que `GetParameter` evalúa cada parámetro
 hijo. Hace falta el recurso exacto **y** el comodín en la misma
-política — con solo uno de los dos, falla. Documentado en
+política; con solo uno de los dos, falla. Documentado en
 `terraform/lambda_processing.tf` para no repetir el error en futuras
 Lambdas que lean Parameter Store.
 
@@ -203,7 +203,7 @@ mes con cadencia semanal) y con disponibilidad confirmada en
 modelo directamente.** Hacen falta dos cosas que no son evidentes
 desde la documentación de alto nivel:
 1. Un **inference profile** (`eu.anthropic.claude-haiku-4-5-...`, no
-   `anthropic.claude-haiku-4-5-...` a secas) — la invocación on-demand
+   `anthropic.claude-haiku-4-5-...` a secas). La invocación on-demand
    directa del modelo base no está soportada para este modelo. El
    prefijo `eu.` mantiene el tráfico dentro de la UE (Fráncfort,
    Estocolmo, Milán, España, Irlanda, París) en vez de enrutar
@@ -211,7 +211,7 @@ desde la documentación de alto nivel:
 2. La política IAM necesita permiso **tanto** sobre el ARN del
    inference profile **como** sobre el ARN del modelo base (con
    comodín de región, ya que el profile puede enrutar a cualquiera de
-   esas regiones EU) — solo el profile no basta.
+   esas regiones EU); solo el profile no basta.
 3. Un paso de cuenta, aparte de "Model access": Anthropic exige
    rellenar un formulario de "caso de uso" (`PutUseCaseForModelAccess`
    en la API de Bedrock) antes de la primera invocación. No aparece
@@ -248,8 +248,8 @@ filtrar o revocar manualmente.
 automático en cada merge a main.** El objetivo del proyecto es coste
 cero y cambios deliberados, no un pipeline que despliega infraestructura
 real sin que nadie lo revise antes. `terraform plan` sí corre
-automáticamente en cada PR que toca `terraform/` — se ve el diff antes
-de fusionar — pero aplicar es siempre una acción explícita desde la
+automáticamente en cada PR que toca `terraform/`, así se ve el diff
+antes de fusionar, pero aplicar es siempre una acción explícita desde la
 pestaña Actions. Coherente con cómo se ha trabajado en todas las fases
 anteriores: plan primero, confirmación humana, apply después.
 
@@ -271,7 +271,7 @@ para que un cambio de nombre no reasigne la confianza a otra cuenta.
 Con la condición `repo:usuario/repo:*` de toda la documentación
 "clásica" de AWS+GitHub OIDC, `sts:AssumeRoleWithWebIdentity` falla
 con `Not authorized` aunque el resto de la configuración (rol,
-proveedor OIDC, variable en GitHub) sea perfecta — no hay forma de
+proveedor OIDC, variable en GitHub) sea perfecta. No hay forma de
 verlo sin decodificar un token real. Se depuró añadiendo
 temporalmente un paso que decodifica el JWT del propio token OIDC y
 publica sus claims como anotación del workflow.
@@ -281,18 +281,18 @@ publica sus claims como anotación del workflow.
 El trabajo avanza de forma intermitente; cada fase termina en un
 estado estable y funcional, sin depender de tiempo continuo.
 
-- [x] **Fase 1 — Fundación**: estructura del repo, Terraform base,
+- [x] **Fase 1, Fundación**: estructura del repo, Terraform base,
   bucket S3 `raw/`, formato de CSV definido, ingesta simple. README
   con arquitectura y decisiones.
-- [x] **Fase 2 — Procesamiento**: EventBridge + Lambda de limpieza y
+- [x] **Fase 2, Procesamiento**: EventBridge + Lambda de limpieza y
   cálculo de métricas. Parameter Store para configuración. Tests con
   pytest. Bucket `processed/`.
-- [x] **Fase 3 — IA + Reporting**: integración con Bedrock para el
+- [x] **Fase 3, IA + Reporting**: integración con Bedrock para el
   resumen en lenguaje natural. Lambda de reporting + envío por SES.
-- [x] **Fase 4 — CI/CD y calidad**: GitHub Actions completo (tests +
+- [x] **Fase 4, CI/CD y calidad**: GitHub Actions completo (tests +
   despliegue Terraform), linting, cobertura de tests, documentación
   final del README, diagrama de arquitectura actualizado.
-- [x] **Fase 5 (opcional)** — Dashboard: API Gateway + frontend
+- [x] **Fase 5 (opcional), Dashboard**: API Gateway + frontend
   Next.js en Vercel, conectando con Plendu.
 
 Las fases 1-4 son el proyecto completo para portfolio/CV. La fase 5
@@ -367,7 +367,7 @@ este paso.
 bucket de datos porque el estado puede contener valores sensibles y
 tiene un ciclo de vida distinto. El locking usa el mecanismo nativo
 de S3 (`use_lockfile`, Terraform >= 1.11) en vez de una tabla
-DynamoDB — un recurso menos que mantener sin perder protección contra
+DynamoDB, un recurso menos que mantener sin perder protección contra
 `apply` concurrentes.
 
 ## Subir un CSV (ingesta manual, Fase 1)
@@ -394,7 +394,7 @@ La Lambda (`src/processing/`) valida cada fila del CSV contra
   solo sobre artículos vendidos.
 - **Rotación** (`sell_through_rate`): `vendidos / (vendidos +
   listados + reservados)`. Se excluye `removed` del denominador a
-  propósito — un artículo retirado ya no compite por venderse, así
+  propósito: un artículo retirado ya no compite por venderse, así
   que incluirlo penalizaría categorías donde se despublica por
   motivos ajenos a la demanda (cambio de temporada, error de
   publicación). Categorías con `sell_through_rate` por debajo del
@@ -430,7 +430,7 @@ Lambda de reporting (`src/reporting/`), que:
 2. Elige hasta 8 artículos concretos para sugerencias individuales:
    solo los que siguen `listed` (vendidos/reservados/retirados no
    necesitan ayuda para venderse) en categorías con rotación baja,
-   priorizando por precio de listado descendente — ahí hay más
+   priorizando por precio de listado descendente, donde hay más
    capital inmovilizado. Acota el prompt aunque el catálogo crezca.
 3. Construye un prompt con las métricas, los deltas y esos artículos
    (con su título real), y pide a Bedrock (Claude Haiku 4.5 vía
@@ -448,7 +448,7 @@ pero sin ver los títulos reales acababa sugiriendo cosas que el
 usuario ya hacía. Pasarle a Bedrock el título real de cada artículo
 ("Polo Fred Perry Twin Tipped blanco crema logo laurel bordado...")
 le permite dar feedback que de verdad depende de lo que ya está
-escrito — por ejemplo, señalar que falta la década/época en vez de
+escrito: por ejemplo, señalar que falta la década/época en vez de
 repetir que falta la marca, que ya está ahí.
 
 ### Requisitos únicos (una sola vez por cuenta AWS)
@@ -483,9 +483,9 @@ EOF
 AWS avisa de que la propagación puede tardar hasta 15 minutos.
 
 3. **Aceptar el acuerdo de AWS Marketplace del modelo**: sin esto,
-   Bedrock devuelve `AccessDeniedException` — *"IAM user or service
+   Bedrock devuelve `AccessDeniedException` (*"IAM user or service
    role is not authorized to perform the required AWS Marketplace
-   actions (aws-marketplace:ViewSubscriptions, aws-marketplace:Subscribe)"* —
+   actions (aws-marketplace:ViewSubscriptions, aws-marketplace:Subscribe)"*),
    incluso con `bedrock:InvokeModel` correctamente concedido. Los
    modelos de terceros en Bedrock (todos los de Anthropic incluidos)
    se sirven a través de una suscripción de AWS Marketplace que hay
@@ -506,7 +506,7 @@ Comprueba el estado con `aws bedrock get-foundation-model-availability
 pasa de `NOT_AVAILABLE` a `PENDING` y, tras uno o dos minutos, a
 `AVAILABLE`. Una vez aceptado, todos los roles IAM de la cuenta
 pueden invocar el modelo sin necesitar permisos de Marketplace ellos
-mismos — solo hace falta que alguien lo acepte una vez.
+mismos, solo hace falta que alguien lo acepte una vez.
 
 ### Tests
 
@@ -520,19 +520,19 @@ simule fielmente.
 
 Tres workflows en `.github/workflows/`:
 
-- **`ci.yml`**: en cada push/PR — escaneo de secretos (`gitleaks`,
+- **`ci.yml`**: en cada push/PR, escaneo de secretos (`gitleaks`,
   gratis en repos públicos), lint (`ruff`), tests con cobertura
   mínima del 80%, y `terraform fmt -check` + `terraform validate`
   (sin credenciales AWS, solo sintaxis).
-- **`terraform-plan.yml`**: en PRs que tocan `terraform/` — plan real
+- **`terraform-plan.yml`**: en PRs que tocan `terraform/`, plan real
   contra AWS vía el rol OIDC, para ver el diff antes de fusionar.
 - **`terraform-apply.yml`**: solo manual (`workflow_dispatch`, botón
-  "Run workflow" en la pestaña Actions) — nunca automático en un
+  "Run workflow" en la pestaña Actions). Nunca automático en un
   merge.
 
 Además, **Dependabot** (`.github/dependabot.yml`) abre PRs semanales
 para actualizar dependencias de Python, providers de Terraform y las
-propias GitHub Actions usadas en los workflows — mantenimiento
+propias GitHub Actions usadas en los workflows: mantenimiento
 pasivo, no hay que acordarse de revisar versiones a mano.
 
 ### Configuración única del repo en GitHub (manual, no la hace Terraform)
@@ -540,14 +540,14 @@ pasivo, no hay que acordarse de revisar versiones a mano.
 1. **Secrets** (Settings → Secrets and variables → Actions → *Secrets*):
    - `BUDGET_ALERT_EMAIL`
    - `REPORT_EMAIL`
-2. **Variable** (misma pantalla, pestaña *Variables* — no es secreta,
+2. **Variable** (misma pantalla, pestaña *Variables*; no es secreta,
    es un ARN, no un credencial):
    - `AWS_ROLE_ARN` = output `github_actions_role_arn` de `terraform
      apply` (algo como
      `arn:aws:iam::<cuenta>:role/vintedlens-dev-github-actions`)
 
 Sin esto, `terraform-plan.yml` y `terraform-apply.yml` fallan al
-intentar asumir el rol o al faltarles las variables de Terraform —
+intentar asumir el rol o al faltarles las variables de Terraform.
 `ci.yml` no necesita nada de esto, corre sin credenciales AWS.
 
 ## API del dashboard (Fase 5)
@@ -571,7 +571,7 @@ attacks.
 a esta API desde el servidor (Server Components), nunca desde el
 navegador. Así la clave vive solo en una
 variable de entorno de servidor en Vercel y nunca llega al bundle de
-cliente — si se llamara desde el navegador, la clave habría que
+cliente. Si se llamara desde el navegador, la clave habría que
 incluirla en el JS público, lo que anularía la protección.
 
 ```bash
@@ -582,17 +582,17 @@ curl -H "x-api-key: $(terraform output -raw api_key)" \
 ## Cómo reutilizarlo para otro negocio de reventa
 
 Aunque está construido para LoopVTG, no hay nada aquí atado a una
-cuenta o negocio en concreto — es una plantilla de IaC, no un script
+cuenta o negocio en concreto: es una plantilla de IaC, no un script
 de un solo uso:
 
 1. **Haz fork y despliega en tu propia cuenta AWS.** Todo lo
    específico de LoopVTG vive en `terraform.tfvars` (no versionado,
    ver `terraform.tfvars.example`): nombre de proyecto, emails,
    modelo de Bedrock. `terraform apply` crea un stack independiente
-   con su propio bucket, Lambdas y API — no comparte nada con el
+   con su propio bucket, Lambdas y API, sin compartir nada con el
    despliegue original.
 2. **Adapta el enunciado de categorías** en
-   [`data/schema.md`](data/schema.md) a lo que vendas — el de
+   [`data/schema.md`](data/schema.md) a lo que vendas: el de
    LoopVTG está pensado para ropa vintage (`vaqueros`, `sudaderas`,
    `polos`...); otro tipo de reventa (electrónica, libros, muebles)
    necesitaría su propio enum.
@@ -616,12 +616,12 @@ GitHub Actions · Next.js en Vercel
 
 ## Proyectos relacionados
 
-- **AWS FinOps Monitor** — monitorización de costes AWS con el mismo
+- **AWS FinOps Monitor**: monitorización de costes AWS con el mismo
   stack serverless base.
-- **Plendu** — SaaS en Next.js con IA (OpenAI gpt-4o-mini vision),
+- **Plendu**: SaaS en Next.js con IA (OpenAI gpt-4o-mini vision),
   cuyos patrones (Next.js + Vercel) reutiliza el dashboard de la
   Fase 5.
-- **[vintedlens-dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard)**
-  — el frontend de la Fase 5, desplegado en Vercel.
+- **[vintedlens-dashboard](https://github.com/M0r3n0SVQ/vintedlens-dashboard)**:
+  el frontend de la Fase 5, desplegado en Vercel.
 
 *(Enlaces pendientes de añadir cuando los repos estén publicados.)*
