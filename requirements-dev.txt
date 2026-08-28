@@ -5,4 +5,4 @@ pytest>=7.4,<9
 pytest-cov>=7.1.0,<8
 moto[s3]>=5.0,<6
 boto3>=1.43.73
-ruff>=0.6,<1
+ruff>=0.16.4,<1
